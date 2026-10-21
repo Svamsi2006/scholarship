@@ -1,0 +1,14 @@
+.env
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+runs/
+.venv/
+venv/
+*.json
+!tests/fixtures/*.json
+service_account.json
+credentials.json
+.cache/
+.pytest_cache/

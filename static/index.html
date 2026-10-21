@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ScholarSwarm v2 – Autonomous Multi-Agent Scholarship Discovery</title>
+  <meta name="description" content="Autonomous multi-agent scholarship discovery and verification swarm with evidence quote verification and real-time streaming.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="top-bar">
+    <div class="brand">
+      <div class="brand-icon">🎓</div>
+      <div>
+        <div class="brand-title">
+          ScholarSwarm <span class="badge-v2">v2 Swarm</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Telemetry / Run State Strip -->
+    <div class="run-metrics-strip">
+      <div class="state-badge state-idle" id="runStateBadge">
+        <span class="status-dot"></span>
+        <span id="runStateText">Ready</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">Elapsed</span>
+        <span class="metric-value" id="elapsedTimer">00:00</span>
+      </div>
+      <div class="metric-item">
+        <span class="metric-label">ETA</span>
+        <span class="metric-value" id="etaTimer">--</span>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="top-controls">
+      <button class="btn btn-preset" id="btnOpenModal" title="Open student profile and document upload dialog">
+        📁 Upload & Edit Profile
+      </button>
+      <label class="chaos-toggle" title="Inject 25% transient failures to test resilience and recovery">
+        <input type="checkbox" id="chaosToggle">
+        <span>⚡ Chaos Mode</span>
+      </label>
+      <button class="btn btn-finish" id="btnFinishNow" disabled title="Skip further searches and rank verified opportunities now">
+        ⚡ Finish Now
+      </button>
+      <button class="btn btn-stop" id="btnStop" disabled title="Cancel the current swarm run">
+        🛑 Stop
+      </button>
+      <button class="btn btn-launch" id="btnLaunch">
+        🚀 Launch Swarm
+      </button>
+    </div>
+  </header>
+
+  <!-- Progress Strip -->
+  <div class="progress-container">
+    <div class="progress-header">
+      <span id="progressPhaseLabel">Awaiting launch...</span>
+      <span id="progressPctText">0%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+  </div>
+
+  <!-- Main Three-Panel Layout -->
+  <main class="main-layout">
+
+    <!-- Left Panel: Profile Input & Swarm Graph -->
+    <aside class="panel">
+      <div class="panel-header">
+        <div class="panel-title">🎯 Swarm Control & Inputs</div>
+      </div>
+      <div class="panel-body">
+
+        <!-- Preset Profiles -->
+        <div class="form-group" style="margin-bottom: 12px;">
+          <span class="form-label">Presets</span>
+          <div class="preset-btns">
+            <button type="button" class="btn-preset" id="btnPresetA">Profile A (Rahul)</button>
+            <button type="button" class="btn-preset" id="btnPresetB">Profile B (Priya)</button>
+          </div>
+        </div>
+
+        <!-- Student Form Inputs -->
+        <form id="profileForm" class="form-section">
+          <div class="form-group">
+            <label class="form-label" for="inpName">Student Name</label>
+            <input type="text" id="inpName" class="form-input" placeholder="e.g. Rahul Kumar" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inpLevel">Target Degree Level</label>
+            <select id="inpLevel" class="form-select">
+              <option value="Masters" selected>Masters (M.S. / M.Sc)</option>
+              <option value="PhD">Ph.D. / Doctorate</option>
+              <option value="Postdoc">Postdoctoral Fellowship</option>
+              <option value="Bachelors">Undergraduate (B.S.)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inpFields">Target Fields (comma-separated)</label>
+            <input type="text" id="inpFields" class="form-input" placeholder="Computer Science, AI, Robotics">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inpCountries">Target Countries (comma-separated)</label>
+            <input type="text" id="inpCountries" class="form-input" placeholder="USA, Germany, UK, Canada">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inpGithub">GitHub Profile / Username</label>
+            <input type="text" id="inpGithub" class="form-input" placeholder="https://github.com/username">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inpResume">Resume / CV Text or Paste</label>
+            <textarea id="inpResume" class="form-textarea" rows="3" placeholder="Paste resume highlights, education, GPA, projects..."></textarea>
+          </div>
+        </form>
+
+        <!-- Agent Swarm Visual Graph -->
+        <div class="form-group">
+          <span class="form-label">Active Swarm Graph</span>
+          <div class="swarm-graph-box">
+            <svg id="swarmSvg" class="swarm-svg" viewBox="0 0 280 200">
+              <!-- Edge Lines -->
+              <path id="edge-1" d="M 50 40 L 140 40" stroke="#334155" stroke-width="2" stroke-dasharray="4" fill="none"/>
+              <path id="edge-2" d="M 140 40 L 230 40" stroke="#334155" stroke-width="2" stroke-dasharray="4" fill="none"/>
+              <path id="edge-3" d="M 230 40 L 190 140" stroke="#334155" stroke-width="2" stroke-dasharray="4" fill="none"/>
+              <path id="edge-4" d="M 190 140 L 90 140" stroke="#334155" stroke-width="2" stroke-dasharray="4" fill="none"/>
+              <path id="edge-loop" d="M 230 40 C 260 90, 180 80, 140 40" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="3" fill="none" opacity="0.3"/>
+
+              <!-- Nodes -->
+              <!-- Node 1: Profile Analyst -->
+              <g id="node-ProfileAnalyst" transform="translate(50, 40)">
+                <circle r="20" fill="#1e1b4b" stroke="#6366f1" stroke-width="2" id="circle-ProfileAnalyst"/>
+                <text text-anchor="middle" dy="5" fill="#e2e8f0" font-size="14">👤</text>
+                <text text-anchor="middle" dy="32" fill="#94a3b8" font-size="9" font-weight="600">Analyst</text>
+              </g>
+
+              <!-- Node 2: Researcher -->
+              <g id="node-Researcher" transform="translate(140, 40)">
+                <circle r="20" fill="#164e63" stroke="#06b6d4" stroke-width="2" id="circle-Researcher"/>
+                <text text-anchor="middle" dy="5" fill="#e2e8f0" font-size="14">🔎</text>
+                <text text-anchor="middle" dy="32" fill="#94a3b8" font-size="9" font-weight="600">Researcher</text>
+              </g>
+
+              <!-- Node 3: Verifier Swarm -->
+              <g id="node-Verifier" transform="translate(230, 40)">
+                <circle r="22" fill="#064e3b" stroke="#10b981" stroke-width="2" id="circle-Verifier"/>
+                <text text-anchor="middle" dy="5" fill="#e2e8f0" font-size="14">🛡️</text>
+                <text text-anchor="middle" dy="34" fill="#94a3b8" font-size="9" font-weight="600">Verifier (6x)</text>
+              </g>
+
+              <!-- Node 4: Ranker -->
+              <g id="node-Ranker" transform="translate(190, 140)">
+                <circle r="20" fill="#312e81" stroke="#8b5cf6" stroke-width="2" id="circle-Ranker"/>
+                <text text-anchor="middle" dy="5" fill="#e2e8f0" font-size="14">⚖️</text>
+                <text text-anchor="middle" dy="32" fill="#94a3b8" font-size="9" font-weight="600">Ranker</text>
+              </g>
+
+              <!-- Node 5: SOP Writer -->
+              <g id="node-SOPWriter" transform="translate(90, 140)">
+                <circle r="20" fill="#4c0519" stroke="#f43f5e" stroke-width="2" id="circle-SOPWriter"/>
+                <text text-anchor="middle" dy="5" fill="#e2e8f0" font-size="14">✍️</text>
+                <text text-anchor="middle" dy="32" fill="#94a3b8" font-size="9" font-weight="600">SOP Writer</text>
+              </g>
+            </svg>
+
+            <!-- Verifier Worker Swarm Dots -->
+            <div class="worker-dots" id="workerDotsContainer" title="Active Verifier Worker Threads">
+              <span class="w-dot" id="wdot-1"></span>
+              <span class="w-dot" id="wdot-2"></span>
+              <span class="w-dot" id="wdot-3"></span>
+              <span class="w-dot" id="wdot-4"></span>
+              <span class="w-dot" id="wdot-5"></span>
+              <span class="w-dot" id="wdot-6"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Telemetry Counters -->
+        <div class="form-group">
+          <span class="form-label">Swarm Telemetry</span>
+          <div class="telemetry-grid">
+            <div class="telemetry-card">
+              <span class="telemetry-title">LLM Calls</span>
+              <span class="telemetry-val" id="cntLlm">0</span>
+            </div>
+            <div class="telemetry-card">
+              <span class="telemetry-title">Web Searches</span>
+              <span class="telemetry-val" id="cntSearches">0</span>
+            </div>
+            <div class="telemetry-card">
+              <span class="telemetry-title">Pages Fetched</span>
+              <span class="telemetry-val" id="cntPages">0</span>
+            </div>
+            <div class="telemetry-card">
+              <span class="telemetry-title" style="color: var(--accent-amber);">Retries / 429s</span>
+              <span class="telemetry-val" id="cntRetries" style="color: var(--accent-amber);">0</span>
+            </div>
+            <div class="telemetry-card">
+              <span class="telemetry-title" style="color: var(--secondary);">Fallbacks</span>
+              <span class="telemetry-val" id="cntFallbacks" style="color: var(--secondary);">0</span>
+            </div>
+            <div class="telemetry-card">
+              <span class="telemetry-title" style="color: var(--accent-emerald);">Cache Hits</span>
+              <span class="telemetry-val" id="cntCacheHits" style="color: var(--accent-emerald);">0</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- Center Panel: Structured Agent Stream Feed & Chatbot -->
+    <section class="panel" style="display: flex; flex-direction: column;">
+      <div class="panel-header">
+        <div class="panel-title">🤖 Swarm Supervisor Chatbot & Activity Stream</div>
+        <div class="feed-filters">
+          <button class="filter-btn active" data-filter="all">All Events</button>
+          <button class="filter-btn" data-filter="handoffs">Handoffs</button>
+          <button class="filter-btn" data-filter="recoveries">Recoveries</button>
+        </div>
+      </div>
+      <div class="panel-body" id="feedBody" style="flex: 1; overflow-y: auto;">
+        <div class="feed-list" id="feedList">
+          <div class="chat-bubble chat-bubble-supervisor">
+            <strong>🎓 Swarm Supervisor Agent</strong><br>
+            Hello! I coordinate our multi-agent scholarship discovery swarm (Profile Analyst, Researcher, Verifier Swarm, Ranker, and SOP Writer).<br><br>
+            Upload your resume or marksheets, link your GitHub/portfolio, and click <strong>🚀 Launch Swarm</strong>. You can also chat with me here anytime to ask questions about deadlines, requirements, or your profile!
+          </div>
+        </div>
+      </div>
+      <!-- Interactive Chat Input -->
+      <div class="chat-input-bar">
+        <input type="text" id="chatInput" class="chat-input" placeholder="Message Supervisor (e.g. 'What are the deadlines for UK scholarships?', 'Check my eligibility')...">
+        <button type="button" id="btnSendChat" class="btn btn-launch" style="padding: 8px 16px; font-size: 12px; white-space: nowrap;">
+          Send 💬
+        </button>
+      </div>
+    </section>
+
+    <!-- Right Panel: Progressive Results, Evidence Chips, Dossier & SOP -->
+    <section class="panel results-panel">
+      <div class="panel-header">
+        <div class="panel-title">🏆 Recommendations & Evidence</div>
+        <div class="results-tabs">
+          <button class="tab-btn active" data-tab="cards">Top Results</button>
+          <button class="tab-btn" data-tab="dossier">Dossier</button>
+          <button class="tab-btn" data-tab="sop">SOP Draft</button>
+          <button class="tab-btn" data-tab="gaps">Gap Action</button>
+          <button class="tab-btn" data-tab="timeline">Timeline</button>
+        </div>
+      </div>
+      <div class="panel-body" id="resultsBody">
+
+        <!-- Tab 1: Progressive Cards Container -->
+        <div id="tabCards">
+          <div id="cardsList">
+            <!-- Shimmer placeholders while waiting -->
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+            <div class="skeleton-card"></div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Student Dossier View -->
+        <div id="tabDossier" style="display: none;">
+          <div id="dossierContent">
+            <div class="dossier-card">
+              <div class="dossier-title">👤 Academic Profile & Citizenship</div>
+              <p style="font-size: 12px; color: var(--text-dim);" id="dossierAcademic">Profile synthesis in progress...</p>
+            </div>
+            <div class="dossier-card">
+              <div class="dossier-title">⚡ Skills & Technologies</div>
+              <div class="skill-tags" id="dossierSkills">
+                <span class="skill-badge">Awaiting synthesis</span>
+              </div>
+            </div>
+            <div class="dossier-card">
+              <div class="dossier-title">📂 GitHub Projects & Repositories</div>
+              <div id="dossierProjects">
+                <p style="font-size: 11px; color: var(--text-muted);">No repositories analyzed yet.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: SOP Draft View -->
+        <div id="tabSop" style="display: none;">
+          <div class="sop-box">
+            <div class="sop-banner">
+              ⚠️ DRAFT ONLY – Review and edit before use. Nothing has been submitted.
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 10px;">
+              <button class="btn btn-finish" id="btnCopySop" style="font-size: 11px;">📋 Copy SOP</button>
+              <button class="btn btn-preset" id="btnDownloadSop" style="font-size: 11px;">💾 Download .txt</button>
+            </div>
+            <pre class="sop-text" id="sopContent">Statement of purpose will be generated automatically for your #1 ranked opportunity once verified.</pre>
+          </div>
+        </div>
+
+        <!-- Tab 4: What's Blocking You (Gap to Action) -->
+        <div id="tabGaps" style="display: none;">
+          <div id="gapsList">
+            <p style="color: var(--text-muted); font-size: 12px;">Gap analysis will appear after ranking completes.</p>
+          </div>
+        </div>
+
+        <!-- Tab 5: Performance Timeline & Stats -->
+        <div id="tabTimeline" style="display: none;">
+          <div id="timelineContainer">
+            <p style="color: var(--text-muted); font-size: 12px;">Execution timeline bar will be drawn after run completion.</p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Initial Profile & Document Upload Modal -->
+  <div id="profileModal" class="modal-backdrop">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>🎓</span> Student Profile Setup & Document Uploads
+        </div>
+        <button type="button" class="modal-close" id="btnCloseModal">✕</button>
+      </div>
+      <div class="modal-body">
+
+        <!-- Presets -->
+        <div style="background: rgba(99, 102, 241, 0.08); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 10px 14px;">
+          <span style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--accent-cyan);">⚡ Quick Load Presets</span>
+          <div class="preset-btns" style="margin-top: 8px;">
+            <button type="button" class="btn-preset" id="modalPresetA">Profile A (Rahul: CS/AI, B.Tech, GitHub)</button>
+            <button type="button" class="btn-preset" id="modalPresetB">Profile B (Priya: Biotech, M.Sc, No GitHub)</button>
+          </div>
+        </div>
+
+        <!-- Upload Dropzones -->
+        <div class="upload-grid">
+          <div class="dropzone" id="dropzoneResume">
+            <input type="file" id="modalInpResumeFile" accept=".pdf,.txt,.docx">
+            <div class="dropzone-icon">📄</div>
+            <div class="dropzone-title">Upload Resume / CV</div>
+            <div class="dropzone-hint">PDF, TXT, or DOCX up to 10MB</div>
+            <div id="badgeResumeFile" class="file-selected-badge" style="display:none;"></div>
+          </div>
+          <div class="dropzone" id="dropzoneMarksheet">
+            <input type="file" id="modalInpMarksheetFile" accept=".pdf,.txt,.docx">
+            <div class="dropzone-icon">📊</div>
+            <div class="dropzone-title">Upload Marksheet / Transcripts</div>
+            <div class="dropzone-hint">Academic records & grades</div>
+            <div id="badgeMarksheetFile" class="file-selected-badge" style="display:none;"></div>
+          </div>
+        </div>
+
+        <!-- Text Inputs -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label" for="modalInpName">Student Name *</label>
+            <input type="text" id="modalInpName" class="form-input" placeholder="e.g. Rahul Kumar" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modalInpLevel">Target Degree Level</label>
+            <select id="modalInpLevel" class="form-select">
+              <option value="Masters" selected>Masters (M.S. / M.Sc)</option>
+              <option value="PhD">Ph.D. / Doctorate</option>
+              <option value="Postdoc">Postdoctoral Fellowship</option>
+              <option value="Bachelors">Undergraduate (B.S.)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label" for="modalInpCitizenship">Citizenship *</label>
+            <input type="text" id="modalInpCitizenship" class="form-input" placeholder="e.g. Indian, German, International" value="International">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modalInpResidency">Residency Status</label>
+            <input type="text" id="modalInpResidency" class="form-input" placeholder="e.g. Non-Resident, Permanent Resident" value="Non-Resident">
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label" for="modalInpFields">Target Fields (comma-separated)</label>
+            <input type="text" id="modalInpFields" class="form-input" placeholder="Computer Science, AI, Robotics">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modalInpCountries">Target Countries (comma-separated)</label>
+            <input type="text" id="modalInpCountries" class="form-input" placeholder="USA, Germany, UK, Canada">
+          </div>
+        </div>
+
+        <!-- Links (GitHub, LinkedIn, Portfolio) -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label class="form-label" for="modalInpGithub">GitHub Profile</label>
+            <input type="text" id="modalInpGithub" class="form-input" placeholder="https://github.com/user">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modalInpLinkedin">LinkedIn Profile</label>
+            <input type="text" id="modalInpLinkedin" class="form-input" placeholder="https://linkedin.com/in/user">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="modalInpPortfolio">Portfolio / Website</label>
+            <input type="text" id="modalInpPortfolio" class="form-input" placeholder="https://mywebsite.dev">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modalInpResumeText">Or Paste Resume / Highlights Text</label>
+          <textarea id="modalInpResumeText" class="form-textarea" rows="2" placeholder="Paste education, achievements, GPA, and test scores if not uploading a file..."></textarea>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-preset" id="btnCancelModal">Close</button>
+        <button type="button" class="btn btn-launch" id="btnModalLaunch">
+          🚀 Save & Launch Discovery Swarm
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quote Inspection Modal / Popover -->
+  <div id="quotePopover" class="quote-popover" style="display: none;">
+    <div class="popover-header">
+      <span id="popoverField">VERIFIED EVIDENCE QUOTE</span>
+      <span style="cursor: pointer;" id="popoverClose">✕</span>
+    </div>
+    <div class="popover-quote" id="popoverText"></div>
+    <div style="margin-top: 4px;">
+      <a href="#" target="_blank" rel="noopener noreferrer" class="popover-url" id="popoverLink">Official Source Link ↗</a>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

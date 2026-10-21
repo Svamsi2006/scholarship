@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  scholarswarm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: scholarswarm:latest
+    container_name: scholarswarm-app
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - LLM_RPM=60
+      - LLM_CONCURRENCY=6
+      - TARGET_VERIFIED=10
+      - TIME_BUDGET_S=360
+      - CACHE=1
+    env_file:
+      - .env
+    volumes:
+      - ./runs:/app/runs
+      - ./.cache:/app/.cache
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

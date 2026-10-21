@@ -1,0 +1,20 @@
+{
+    "name": "Priya Sharma",
+    "education": [
+        {"degree": "M.Sc", "field": "Biotechnology", "institution": "Delhi University", "cgpa": 7.1, "cgpa_scale": 10.0, "year": 2025}
+    ],
+    "skills": ["R", "Bioinformatics", "Genomics", "Proteomics", "BLAST", "Molecular Biology", "Scientific Writing"],
+    "projects": [
+        {"name": "Gene Expression Analysis", "description": "RNA-seq differential expression analysis of breast cancer datasets", "tech": ["R", "Bioconductor", "DESeq2"], "url": null},
+        {"name": "Protein Structure Prediction", "description": "Comparative modeling of novel protein using homology modeling", "tech": ["MODELLER", "PyMOL"], "url": null}
+    ],
+    "achievements": ["UGC NET Qualified (Life Sciences)", "Presented poster at National Biotech Conference 2025"],
+    "test_scores": [],
+    "github": null,
+    "target_level": "PhD",
+    "target_fields": ["Biotechnology", "Bioinformatics"],
+    "target_countries": ["Germany", "Netherlands", "Sweden"],
+    "funding_need": "full",
+    "gaps": ["No English test score (IELTS/TOEFL)", "No GRE score", "No GitHub profile", "Lower CGPA (7.1/10)"],
+    "field_sources": {"name": "resume", "education": "marksheet", "skills": "resume", "projects": "resume", "achievements": "resume", "target_level": "form", "target_fields": "form", "target_countries": "form", "funding_need": "form"}
+}

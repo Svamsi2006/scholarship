@@ -1,0 +1,21 @@
+{
+    "name": "Rahul Kumar",
+    "education": [
+        {"degree": "B.Tech", "field": "Computer Science and Engineering", "institution": "Lovely Professional University", "cgpa": 8.2, "cgpa_scale": 10.0, "year": 2026}
+    ],
+    "skills": ["Python", "Machine Learning", "TensorFlow", "PyTorch", "NLP", "Computer Vision", "Docker", "Git", "AWS"],
+    "projects": [
+        {"name": "SmartCrop AI", "description": "Deep learning model for crop disease detection using CNNs, 94% accuracy on plant village dataset", "tech": ["Python", "TensorFlow", "Flask"], "url": null},
+        {"name": "ChatBot Framework", "description": "NLP-based chatbot using transformer architecture, deployed on AWS", "tech": ["Python", "PyTorch", "HuggingFace"], "url": null},
+        {"name": "Traffic Flow Predictor", "description": "LSTM-based traffic prediction system, won 2nd prize at university hackathon", "tech": ["Python", "Keras", "OpenCV"], "url": null}
+    ],
+    "achievements": ["2nd prize University AI Hackathon 2025", "Published paper on CNN-based Plant Disease Detection in IJCRT", "Google Cloud Digital Leader Certification", "Smart India Hackathon 2025 finalist"],
+    "test_scores": [],
+    "github": {"username": "torvalds", "profile_url": "https://github.com/torvalds", "top_languages": ["C", "Python"], "notable_repos": [], "public_repo_count": 5},
+    "target_level": "Masters",
+    "target_fields": ["Computer Science", "Artificial Intelligence"],
+    "target_countries": ["USA", "UK", "Germany", "Canada"],
+    "funding_need": "full",
+    "gaps": ["No English test score (IELTS/TOEFL)", "No GRE score", "No specific university preferences stated"],
+    "field_sources": {"name": "resume", "education": "marksheet", "skills": "resume", "projects": "resume", "achievements": "resume", "target_level": "form", "target_fields": "form", "target_countries": "form", "funding_need": "form"}
+}
