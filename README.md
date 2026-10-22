@@ -4,6 +4,8 @@
 
 A CrewAI-powered multi-agent system that searches, verifies, and ranks real scholarship opportunities tailored to any student's profile.
 
+**Deployed URL: ** -- https://scholarswarm-325287784.asia-south1.run.app/ 
+
 ## Architecture
 
 The system uses a FastAPI backend and a live browser Mission Control UI. The backend orchestrates a streaming multi-agent pipeline, validates evidence against fetched source text, and emits progress and partial results as newline-delimited JSON (NDJSON).
