@@ -4,66 +4,91 @@
 
 A CrewAI-powered multi-agent system that searches, verifies, and ranks real scholarship opportunities tailored to any student's profile.
 
-## Architecture (v2 Streaming Swarm)
+## Architecture
+
+The system uses a FastAPI backend and a live browser Mission Control UI. The backend orchestrates a streaming multi-agent pipeline, validates evidence against fetched source text, and emits progress and partial results as newline-delimited JSON (NDJSON).
 
 ```mermaid
-graph TB
-    subgraph "Frontend: Mission Control UI"
-        UI[index.html + app.js<br>Swarm Graph, Live Stream, Evidence Chips]
-    end
+flowchart TB
+  subgraph UI["Browser · Mission Control"]
+    FORM["Student profile + optional documents"]
+    VIEW["Live swarm graph · progress · evidence chips"]
+    RESULTS["Ranked opportunities · action plan · SOP"]
+    FORM --> VIEW --> RESULTS
+  end
 
-    subgraph "Backend API & Resilience"
-        API[FastAPI<br>/api/run SSE, /finish, /stop]
-        LLMGate[LLMGate<br>TokenBucket RPM + Concurrency Semaphore + Fallback]
-        Cache[DiskCache<br>Search & Fetch SHA256]
-    end
+  subgraph API["FastAPI · Run orchestration"]
+    ENDPOINT["POST /api/run"]
+    PARSE["Parse resume / marksheet"]
+    FLOW["CrewAI Flow orchestration"]
+    BUS["Thread-safe EventBus"]
+    STREAM["StreamingResponse · NDJSON"]
+    CTRL["Finish / Stop run controls"]
+    CHAT["Run-aware assistant · /api/chat"]
+    SAVED[("Saved run JSON / replay")]
+    ENDPOINT --> PARSE --> FLOW
+    FLOW --> BUS --> STREAM
+    FLOW --> SAVED
+    CHAT --> SAVED
+  end
 
-    subgraph "Streaming Swarm Pipeline"
-        PA[🔍 Profile Analyst<br>Docs & GitHub in parallel -> 1 LLM call]
-        QP[🎯 Query Planner<br>1 LLM call -> N facet queries]
-        PS[⚡ Parallel Search<br>asyncio.gather Tavily/DDGS]
-        CC[🏷️ Candidate Classifier<br>1 LLM call -> Candidates Stream]
-        Queue[📥 asyncio.Queue]
-        
-        subgraph "Verifier Swarm Pool"
-            V1[✅ Verifier Worker 1]
-            V2[✅ Verifier Worker 2]
-            V3[✅ Verifier Worker 3]
-            VN[✅ Verifier Worker N]
-        end
+  subgraph AGENTS["Streaming multi-agent pipeline"]
+    PROFILE["Profile Analyst"]
+    PLAN["Query Planner"]
+    SEARCH["Parallel search + candidate classification"]
+    QUEUE[("Candidate queue")]
+    VERIFIERS["Concurrent verifier workers"]
+    FETCH["Fetch official/source pages"]
+    EVIDENCE["Plain-Python evidence quote check"]
+    ROUTER{"Target met · Finish now · time budget?"}
+    RANK["Ranker & Advisor"]
+    SOP["SOP Writer"]
+    PROFILE --> PLAN --> SEARCH --> QUEUE --> VERIFIERS
+    VERIFIERS --> FETCH --> EVIDENCE --> ROUTER
+    ROUTER -->|More research and rounds remain| PLAN
+    ROUTER -->|Stop condition| RANK --> SOP
+  end
 
-        ROUTER{Pipeline Router<br>Target met / Time budget / Finish now}
-        RA[📊 Ranker & Advisor<br>1 LLM call LLM_SMART]
-        SW[✍️ SOP Writer<br>1 LLM call LLM_SMART]
-    end
+  subgraph SERVICES["External services and reliability"]
+    TAVILY["Tavily search"]
+    DDG["DuckDuckGo fallback"]
+    GITHUB["Optional GitHub enrichment"]
+    CACHE[("SHA-256 disk cache with TTL")]
+    GATE["LLMGate · rate limits · concurrency<br/>retry/backoff · model fallback"]
+    MODEL["Gemini / Vertex AI model provider"]
+    TAVILY <--> CACHE
+    DDG <--> CACHE
+    FETCH <--> CACHE
+    GATE --> MODEL
+  end
 
-    subgraph "Deterministic Plumbing"
-        EXT[Tavily Extract / HTTPX<br>Pruned to 12k chars, max 12s]
-        VE[verify_evidence<br>Plain Python Substring Check]
-    end
+  FORM --> ENDPOINT
+  STREAM --> VIEW
+  CTRL --> FLOW
+  FLOW --> PROFILE
+  FLOW --> GITHUB
+  SEARCH --> TAVILY
+  SEARCH --> DDG
+  VERIFIERS --> GATE
+  PROFILE --> GATE
+  PLAN --> GATE
+  RANK --> GATE
+  SOP --> GATE
+  EVIDENCE --> RESULTS
 
-    UI -->|POST /api/run| API
-    API -->|SSE NDJSON Events| UI
-    UI -.->|POST /finish| API
-    UI -.->|POST /stop| API
-    
-    API --> PA
-    PA --> QP
-    QP --> PS
-    PS --> CC
-    CC -->|Push Candidates| Queue
-    Queue --> V1 & V2 & V3 & VN
-    V1 & V2 & V3 & VN --> EXT
-    EXT --> VE
-    V1 & V2 & V3 & VN -->|partial_result emitted immediately| API
-    V1 & V2 & V3 & VN --> ROUTER
-    ROUTER -->|Enough / Finish| RA
-    ROUTER -.->|Need more| QP
-    RA --> SW
-    SW -->|RunResult Final| API
-    
-    PA & QP & CC & V1 & V2 & V3 & VN & RA & SW -.-> LLMGate
+  classDef front fill:#e8f3ff,stroke:#377cc8,color:#122b45;
+  classDef core fill:#e9f8ef,stroke:#299764,color:#123a27;
+  classDef work fill:#fff4df,stroke:#bf8628,color:#4e3510;
+  classDef ext fill:#f2eaff,stroke:#8b62c5,color:#35204f;
+  class FORM,VIEW,RESULTS front;
+  class ENDPOINT,PARSE,FLOW,BUS,STREAM,CTRL,CHAT,SAVED core;
+  class PROFILE,PLAN,SEARCH,QUEUE,VERIFIERS,FETCH,EVIDENCE,ROUTER,RANK,SOP work;
+  class TAVILY,DDG,GITHUB,CACHE,GATE,MODEL ext;
 ```
+
+**Data flow:** student profile and optional documents → profile analysis → query planning and parallel search → concurrent verification → deterministic evidence checks → ranking and tailored application guidance. The router can send the planner back for another research round when useful. Verifier workers emit partial results as they complete, so users do not need to wait until the entire run finishes to see progress.
+
+See [docs/architecture.md](docs/architecture.md) for the detailed component diagram, typed data contracts, evidence integrity notes, failure recovery, and deployment information.
 
 ## Key Features (v2)
 
