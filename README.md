@@ -4,7 +4,7 @@
 
 A CrewAI-powered multi-agent system that searches, verifies, and ranks real scholarship opportunities tailored to any student's profile.
 
-**Deployed URL:** -- https://scholarship-star-325287784.asia-south1.run.app/ 
+**Deployed URL** -- https://scholarship-325287784.us-central1.run.app/
 
 ## Architecture
 
