@@ -17,7 +17,7 @@ _API = "https://api.github.com"
 def _headers() -> dict[str, str]:
     h: dict[str, str] = {
         "Accept": "application/vnd.github+json",
-        "User-Agent": "ScholarSwarm-Researcher/2.0",
+        "User-Agent": "ScholarshipStar-Researcher/2.0",
     }
     if GITHUB_TOKEN:
         h["Authorization"] = f"Bearer {GITHUB_TOKEN}"

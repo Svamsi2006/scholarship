@@ -1,6 +1,6 @@
 """LLM Gate: Rate limiting, concurrency semaphore, exponential backoff, fallback, and observability.
 
-Every LLM call in ScholarSwarm passes through this gate.
+Every LLM call in Scholarship Star passes through this gate.
 Never drops a request due to 429; retries with exponential backoff and falls back.
 """
 

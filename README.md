@@ -1,10 +1,10 @@
-# ScholarSwarm 🎓
+# Scholarship Star 🌟
 
 **AI Multi-Agent Scholarship Finder** — Built for the TetraNoodle AI Hackathon 2026
 
 A CrewAI-powered multi-agent system that searches, verifies, and ranks real scholarship opportunities tailored to any student's profile.
 
-**Deployed URL:** -- https://scholarswarm-325287784.asia-south1.run.app/ 
+**Deployed URL:** -- https://scholarship-star-325287784.asia-south1.run.app/ 
 
 ## Architecture
 
@@ -117,7 +117,7 @@ See [docs/architecture.md](docs/architecture.md) for the detailed component diag
 
 ```bash
 # Clone and enter the project
-cd scholarswarm
+cd scholarship-star
 
 # Create virtual environment
 python -m venv .venv
@@ -134,7 +134,7 @@ cp .env.example .env
 
 ### Configuration & Credentials
 
-ScholarSwarm supports either Google Cloud Vertex AI (enterprise service account) or Google AI Studio (API key):
+Scholarship Star supports either Google Cloud Vertex AI (enterprise service account) or Google AI Studio (API key):
 
 | Key | Mode | Required | Description |
 |-----|------|----------|-------------|
@@ -177,14 +177,14 @@ vulture app scripts
 ### Docker
 
 ```bash
-docker build -t scholarswarm .
-docker run -p 8080:8080 --env-file .env scholarswarm
+docker build -t scholarship-star .
+docker run -p 8080:8080 --env-file .env scholarship-star
 ```
 
 ### Deploy to Cloud Run
 
 ```bash
-gcloud run deploy scholarswarm \
+gcloud run deploy scholarship-star \
     --source . \
     --region asia-south1 \
     --allow-unauthenticated \

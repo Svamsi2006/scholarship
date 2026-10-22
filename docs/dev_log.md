@@ -1,4 +1,4 @@
-# ScholarSwarm Development Log
+# Scholarship Star Development Log
 
 ## Milestone 1: Skeleton and Deploy Smoke Test
 

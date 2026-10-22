@@ -6,7 +6,7 @@ from pathlib import Path
 def create_clean_archive():
     root_dir = Path(__file__).resolve().parent.parent
     desktop_dir = root_dir.parent
-    output_zip = desktop_dir / "scholarship_project.zip"
+    output_zip = desktop_dir / "scholarship_star.zip"
     
     EXCLUDE_DIR_NAMES = {
         '.git', '.venv', 'venv', '__pycache__', 
@@ -14,7 +14,7 @@ def create_clean_archive():
         '.idea', '.vscode'
     }
     EXCLUDE_FILE_NAMES = {
-        '.env', 'service_account.json', 'scholarship_project.zip',
+        '.env', 'service_account.json', 'scholarship_star.zip', 'scholarship_project.zip',
         '.DS_Store', 'Thumbs.db'
     }
     EXCLUDE_EXTENSIONS = {'.pyc', '.pyo', '.tmp', '.log'}
@@ -39,7 +39,7 @@ def create_clean_archive():
                 
                 full_path = Path(root) / file
                 rel_path = full_path.relative_to(root_dir)
-                archive_name = Path("scholarship") / rel_path
+                archive_name = Path("scholarship-star") / rel_path
 
                 zf.write(full_path, str(archive_name))
                 file_count += 1

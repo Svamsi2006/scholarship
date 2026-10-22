@@ -1,5 +1,5 @@
 # ==============================================================================
-# ScholarSwarm Production Dockerfile – Optimized for Google Cloud Run (Scale-to-Zero)
+# Scholarship Star Production Dockerfile – Optimized for Google Cloud Run (Scale-to-Zero)
 # ==============================================================================
 FROM python:3.11-slim AS builder
 

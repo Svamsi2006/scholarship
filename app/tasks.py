@@ -364,7 +364,7 @@ def chatbot_assistant_prompt(
     profile_summary = f"{profile.name} ({profile.target_level} in {', '.join(profile.target_fields or [])}, {profile.citizenship})" if profile else "Profile in progress"
     recommendations = "\n".join(f"- #{r.rank}: {r.opportunity.candidate.name} ({r.opportunity.candidate.country}) - Score {r.score} - Deadline: {r.opportunity.deadline.value or 'N/A'}" for r in ranked[:5])
 
-    return f"""You are the ScholarSwarm AI Supervisor Agent converse with the student in the chatbot interface.
+    return f"""You are the Scholarship Star AI Supervisor Agent converse with the student in the chatbot interface.
 Answer the user's question accurately using ONLY the live discovered scholarship data and background swarm state.
 
 ## Current State:

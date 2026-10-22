@@ -31,7 +31,7 @@ def generate_perf_report(run_file_or_id: str | Path | None = None) -> dict:
                 return {}
 
     print("\n=======================================================")
-    print("       SCHOLARSWARM PERFORMANCE REPORT")
+    print("       SCHOLARSHIP STAR PERFORMANCE REPORT")
     print(f"       Run: {run_path.stem}")
     print("=======================================================")
 

@@ -1,12 +1,12 @@
 version: "3.8"
 
 services:
-  scholarswarm:
+  scholarship-star:
     build:
       context: .
       dockerfile: Dockerfile
-    image: scholarswarm:latest
-    container_name: scholarswarm-app
+    image: scholarship-star:latest
+    container_name: scholarship-star-app
     ports:
       - "8080:8080"
     environment:

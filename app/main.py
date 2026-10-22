@@ -23,7 +23,7 @@ from app.events import EventBus
 from app.flow import RUN_REGISTRY, run_flow_async
 from app.tools.documents import parse_document
 
-app = FastAPI(title="ScholarSwarm", version="2.0.0")
+app = FastAPI(title="Scholarship Star", version="2.0.0")
 
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 

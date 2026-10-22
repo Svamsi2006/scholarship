@@ -232,8 +232,8 @@ def _compute_gap_actions(top_opps: list[RankedOpportunity], profile: StudentProf
     return actions
 
 
-class ScholarSwarmFlow(Flow):
-    """CrewAI Flow – native orchestrator for the ScholarSwarm multi-agent system."""
+class ScholarshipStarFlow(Flow):
+    """CrewAI Flow – native orchestrator for the Scholarship Star multi-agent system."""
 
     def __init__(
         self,
@@ -1183,11 +1183,11 @@ def run_flow(
             "agent": "System",
             "type": "start",
             "phase": "init",
-            "message": f"Initializing ScholarSwarm run {run_id}",
+            "message": f"Initializing Scholarship Star run {run_id}",
         }
     )
 
-    flow = ScholarSwarmFlow(
+    flow = ScholarshipStarFlow(
         run_id=run_id,
         bus=event_bus,
         resume_text=resume_text,
@@ -1233,11 +1233,11 @@ async def run_flow_async(
             "agent": "System",
             "type": "start",
             "phase": "init",
-            "message": f"Initializing ScholarSwarm run {active_run_id}",
+            "message": f"Initializing Scholarship Star run {active_run_id}",
         }
     )
 
-    flow = ScholarSwarmFlow(
+    flow = ScholarshipStarFlow(
         run_id=active_run_id,
         bus=event_bus,
         resume_text=resume_text,
@@ -1250,6 +1250,8 @@ async def run_flow_async(
     return await flow.akickoff()
 
 
-# Backward compatibility alias
-ScholarSwarmPipeline = ScholarSwarmFlow
+# Backward compatibility aliases
+ScholarSwarmFlow = ScholarshipStarFlow
+ScholarshipStarPipeline = ScholarshipStarFlow
+ScholarSwarmPipeline = ScholarshipStarFlow
 

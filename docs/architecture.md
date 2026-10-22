@@ -1,6 +1,6 @@
-# ScholarSwarm Architecture
+# Scholarship Star Architecture
 
-ScholarSwarm is a streaming, multi-agent scholarship research system. It turns a student's profile into sourced scholarship candidates, checks every claim against the fetched page text, ranks the suitable opportunities, and drafts an SOP grounded in the student's real facts.
+Scholarship Star is a streaming, multi-agent scholarship research system. It turns a student's profile into sourced scholarship candidates, checks every claim against the fetched page text, ranks the suitable opportunities, and drafts an SOP grounded in the student's real facts.
 
 > **Transport note:** the browser receives newline-delimited JSON (NDJSON) from `POST /api/run` through FastAPI's `StreamingResponse`. This is not Server-Sent Events (SSE).
 

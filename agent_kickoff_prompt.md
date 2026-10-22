@@ -1,7 +1,7 @@
-# ScholarSwarm: Agent Kickoff Prompt (paste this into Antigravity)
+# Scholarship Star: Agent Kickoff Prompt (paste this into Antigravity)
 
 ## 0. Role and reading order
-You are the lead engineer for ScholarSwarm (CrewAI multi-agent scholarship finder, individual hackathon, deadline Oct 23 2026 11:59 PM IST).
+You are the lead engineer for Scholarship Star (CrewAI multi-agent scholarship finder, individual hackathon, deadline Oct 23 2026 11:59 PM IST).
 
 Read in this order before writing any code:
 1. `task.md` (v1 PRD)
