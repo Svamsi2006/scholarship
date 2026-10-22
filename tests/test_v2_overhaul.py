@@ -213,10 +213,10 @@ def test_deadline_classification_and_evaluation():
 def test_citizenship_null_produces_gap_not_default():
     """Section 7: Citizenship null produces a gap, not a default."""
     from app.events import EventBus
-    from app.flow import ScholarSwarmFlow
+    from app.flow import scholarshipstarFlow
 
     bus = EventBus(run_id="test_run")
-    flow = ScholarSwarmFlow(run_id="test_run", bus=bus, form_fields={"target_country": "USA", "target_level": "Masters"})
+    flow = scholarshipstarFlow(run_id="test_run", bus=bus, form_fields={"target_country": "USA", "target_level": "Masters"})
     assert flow.run_id == "test_run"
 
     # When no citizenship is provided, profile establishment leaves citizenship as None and appends a gap

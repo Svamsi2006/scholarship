@@ -39,7 +39,7 @@
 ### Plan
 - `agents.py`: 5 distinct CrewAI agents (`ProfileAnalyst`, `OpportunityResearcher`, `EligibilityVerifier`, `RankerAdvisor`, `SOPWriter`)
 - `tasks.py`: Structured prompt definitions enforcing verbatim evidence and strict profile adherence
-- `flow.py`: `ScholarSwarmFlow` with feedback loop routing (`TARGET_VERIFIED = 10`, `MAX_ROUNDS = 3`)
+- `flow.py`: `scholarshipstarFlow` with feedback loop routing (`TARGET_VERIFIED = 10`, `MAX_ROUNDS = 3`)
 - Inspect CrewAI library APIs (`inspect.signature(Agent.__init__)`, `inspect.signature(Flow.__init__)`) to ensure full compatibility with installed `crewai==0.203.2`
 
 ### Results
@@ -222,7 +222,7 @@ From live run `runs/20261021T153057_486f78.json` executed on Profile A:
 
 ```
 =======================================================
-       SCHOLARSWARM PERFORMANCE REPORT
+       scholarshipstar PERFORMANCE REPORT
        Run: 20261021T153057_486f78
 =======================================================
 

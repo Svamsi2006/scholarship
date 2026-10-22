@@ -1,4 +1,4 @@
-# TASK: Build "ScholarSwarm", a CrewAI Multi-Agent Scholarship Finder
+# TASK: Build "scholarshipstar", a CrewAI Multi-Agent Scholarship Finder
 
 > You are the coding agent. Read this entire file before writing any code. Work milestone by milestone (Section 14). Do not claim anything is done without showing command output that proves it (Section 3).
 
@@ -86,7 +86,7 @@ This is for the **TetraNoodle AI Hackathon 2026** (individual, LPU students). **
 ## 5. Repository Layout
 
 ```
-scholarswarm/
+scholarshipstar/
 ├── task.md                      # this file
 ├── README.md                    # setup, run, architecture diagram (Mermaid), sources policy
 ├── requirements.txt
@@ -381,7 +381,7 @@ Simple and clean. No framework.
 ## 12. Docker and Deployment
 
 - `Dockerfile`: `python:3.11-slim`, install requirements, copy the app, `CMD uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8080}`.
-- Deploy: `gcloud run deploy scholarswarm --source . --region asia-south1 --allow-unauthenticated --timeout 600 --max-instances 1 --memory 1Gi` with env vars (or Secret Manager) for `TAVILY_API_KEY`, `GEMINI_API_KEY` (or whichever LLM key), and `LLM_MODEL`.
+- Deploy: `gcloud run deploy scholarshipstar --source . --region asia-south1 --allow-unauthenticated --timeout 600 --max-instances 1 --memory 1Gi` with env vars (or Secret Manager) for `TAVILY_API_KEY`, `GEMINI_API_KEY` (or whichever LLM key), and `LLM_MODEL`.
 - Local demo must also work: `uvicorn app.main:app --reload`. The hackathon explicitly allows a local demo, so Cloud Run is a bonus. Do not let deployment block the core build.
 - Deploy a minimal hello-world version of this container early (Milestone 1) to catch deployment problems before the last night.
 

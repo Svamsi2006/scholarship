@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 from app.events import EventBus
-from app.flow import ScholarSwarmPipeline
+from app.flow import scholarshipstarPipeline
 from app.models import Candidate, Evidenced, StudentProfile, VerifiedOpportunity
 
 
@@ -14,7 +14,7 @@ from app.models import Candidate, Evidenced, StudentProfile, VerifiedOpportunity
 async def test_finish_now_proceeds_to_ranking_with_partial_results():
     """TASK v2 4.1: Finish now sets finish_event; router stops verification and proceeds to ranker."""
     bus = EventBus(run_id="test_finish_run")
-    pipe = ScholarSwarmPipeline(
+    pipe = scholarshipstarPipeline(
         run_id="test_finish_run",
         bus=bus,
         resume_text="Experienced Python developer seeking Masters",
@@ -54,7 +54,7 @@ async def test_finish_now_proceeds_to_ranking_with_partial_results():
 async def test_stop_signal_aborts_swarm():
     """TASK v2 4.1: Stop signal halts verification immediately."""
     bus = EventBus(run_id="test_stop_run")
-    pipe = ScholarSwarmPipeline(
+    pipe = scholarshipstarPipeline(
         run_id="test_stop_run",
         bus=bus,
     )
