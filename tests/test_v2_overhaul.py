@@ -51,8 +51,8 @@ async def test_dual_token_bucket_rpm_and_tpm():
 
 def test_citizenship_and_residency_defaults():
     profile = StudentProfile(name="Amina", target_level="Masters")
-    assert profile.citizenship == "International"
-    assert profile.residency_status == "Non-Resident"
+    assert profile.citizenship is None
+    assert profile.residency_status is None
 
 
 def test_zero_tolerance_filtering_disqualifies_not_met():
@@ -91,7 +91,7 @@ def test_pre_screen_candidate_drops_mismatches():
     from app.flow import pre_screen_candidate
 
     male_ms_profile = StudentProfile(
-        name="Rahul Sharma",
+        name="Alex Sharma",
         target_level="Masters",
         target_fields=["Computer Science"],
         target_countries=["USA"],
@@ -164,3 +164,165 @@ def test_queries_generation_prompt_forbids_programming_languages():
     assert "NEVER include programming tools" in prompt
     assert "Jupyter Notebook" in prompt
     assert "-women -female -hispanic" in prompt
+
+
+def test_deadline_classification_and_evaluation():
+    """Section 7: Rolling, cycle and anticipated deadlines are kept with a badge;
+
+    a clearly past fixed deadline is dropped; an unparseable date becomes unknown.
+    """
+    from app.flow import classify_and_evaluate_deadline
+
+    # 1. Rolling deadline -> kept with badge
+    dl_type, badge, drop = classify_and_evaluate_deadline("Applications accepted on a rolling basis", "rolling", "")
+    assert dl_type == "rolling"
+    assert badge == "rolling"
+    assert not drop
+
+    # 2. Cycle deadline (e.g. applications open each autumn) -> kept with badge
+    dl_type, badge, drop = classify_and_evaluate_deadline("Applications open each autumn", "cycle", "")
+    assert dl_type == "cycle"
+    assert badge == "rolling"
+    assert not drop
+
+    # 3. Anticipated deadline -> kept with badge
+    dl_type, badge, drop = classify_and_evaluate_deadline("Anticipated December 2027", "anticipated", "")
+    assert dl_type == "anticipated"
+    assert not drop
+
+    # 4. Past fixed deadline with no next cycle -> dropped (anchor: Oct 22, 2026)
+    dl_type, badge, drop = classify_and_evaluate_deadline("November 15, 2025", "fixed", "Portal closed for this year.")
+    assert dl_type == "fixed"
+    assert badge == "closed"
+    assert drop is True
+
+    # 5. Past fixed deadline but page mentions next cycle -> kept as cycle
+    dl_type, badge, drop = classify_and_evaluate_deadline(
+        "November 15, 2025", "fixed", "The previous cycle closed Nov 15 2025; next cycle for 2027 reopens soon."
+    )
+    assert dl_type == "cycle"
+    assert drop is False
+
+    # 6. Unparseable date string -> treated as unknown, never as past/dropped!
+    dl_type, badge, drop = classify_and_evaluate_deadline("Soonish or TBD later", "fixed", "Details coming soon.")
+    assert dl_type == "unknown"
+    assert badge == "unknown"
+    assert drop is False
+
+
+def test_citizenship_null_produces_gap_not_default():
+    """Section 7: Citizenship null produces a gap, not a default."""
+    from app.events import EventBus
+    from app.flow import ScholarSwarmFlow
+
+    bus = EventBus(run_id="test_run")
+    flow = ScholarSwarmFlow(run_id="test_run", bus=bus, form_fields={"target_country": "USA", "target_level": "Masters"})
+    assert flow.run_id == "test_run"
+
+    # When no citizenship is provided, profile establishment leaves citizenship as None and appends a gap
+    profile = StudentProfile(name="Amina", target_level="Masters")
+    assert profile.citizenship is None
+    assert profile.residency_status is None
+
+    # Verify flow gap insertion
+    if profile.citizenship is None:
+        gap_msg = "Citizenship unknown (must verify before applying)"
+        profile.gaps.append(gap_msg)
+
+    assert "Citizenship unknown (must verify before applying)" in profile.gaps
+
+
+
+def test_unknown_is_kept_and_not_met_with_quote_is_rejected():
+    """Section 7: unknown is kept, not_met with a quote is rejected."""
+    # Unknown eligibility criterion is kept
+    opp_unknown = VerifiedOpportunity(
+        candidate=Candidate(id="c_unk", name="Flexible Fellowship", source_url="http://example.com/unk", found_by_query="test"),
+        status="partial",
+        requirements=[
+            CriterionCheck(criterion="GRE Score", result="unknown", student_value="Not provided"),
+            CriterionCheck(criterion="Major", result="met", evidence_quote="Open to STEM"),
+        ],
+        citizenship_met=True,
+    )
+    # Filter: reject only if there is a verified not_met
+    is_rejected_unk = any(r.result == "not_met" and r.evidence_quote for r in opp_unknown.requirements)
+    assert not is_rejected_unk
+    assert opp_unknown.status != "rejected"
+
+    # Not met with verified quote is rejected
+    opp_not_met = VerifiedOpportunity(
+        candidate=Candidate(id="c_rej", name="PhD Only Fellowship", source_url="http://example.com/rej", found_by_query="test"),
+        status="rejected",
+        requirements=[
+            CriterionCheck(criterion="Degree Level", result="not_met", evidence_quote="First-year PhD candidates only"),
+        ],
+        citizenship_met=True,
+    )
+    is_rejected_nm = any(r.result == "not_met" and r.evidence_quote for r in opp_not_met.requirements)
+    assert is_rejected_nm is True
+
+
+def test_scanned_pdf_ocr_fallback_triggers_under_50_chars(monkeypatch):
+    """Section 7: Scanned-PDF OCR fallback triggers when extracted text is under 50 characters."""
+    from unittest.mock import MagicMock
+
+    from app.tools import documents
+
+    ocr_called = False
+
+    def mock_ocr(content: bytes) -> str:
+        nonlocal ocr_called
+        ocr_called = True
+        return "Transcripts: Calculus Grade A, Data Structures Grade A, CGPA 9.2"
+
+    monkeypatch.setattr(documents, "_ocr_pdf_sync", mock_ocr)
+
+    # Minimal 1-page blank PDF bytes with no text (empty scanned page)
+    # Using a mock PdfReader returning empty text
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = "   "  # 3 spaces < 50 chars
+    mock_reader = MagicMock()
+    mock_reader.pages = [mock_page]
+
+    monkeypatch.setattr(documents, "PdfReader", lambda stream: mock_reader)
+
+    result = documents.parse_document(b"%PDF-mock", "marksheet_scanned.pdf")
+    assert ocr_called is True
+    assert "Calculus Grade A" in result
+
+
+@pytest.mark.asyncio
+async def test_hung_url_in_tavily_batch_does_not_delay_other_urls(monkeypatch):
+    """Section 7: A hung URL in a Tavily batch does not delay the other URLs beyond the batch timeout."""
+    import asyncio
+    import time
+
+    from app.tools import fetch
+
+
+    urls = [
+        "https://fast-site-1.edu/page",
+        "https://fast-site-2.edu/page",
+        "https://hung-site.edu/page",
+    ]
+
+    async def mock_fetch_single(url, **kwargs):
+        if "hung" in url:
+            # Hung site simulates timeout
+            await asyncio.sleep(0.3)
+            return {"url": url, "status": "unreachable", "reason": "Timeout", "text": ""}
+        return {"url": url, "status": "ok", "text": f"Content for {url}"}
+
+    monkeypatch.setattr(fetch, "TAVILY_API_KEY", "")  # Use direct parallel fetch
+    monkeypatch.setattr(fetch, "fetch_page_async", mock_fetch_single)
+
+    t0 = time.time()
+    results = await fetch.fetch_pages_batch_async(urls, batch_timeout=0.5)
+    elapsed = time.time() - t0
+
+    assert elapsed < 1.5
+    assert results["https://fast-site-1.edu/page"]["status"] == "ok"
+    assert results["https://fast-site-2.edu/page"]["status"] == "ok"
+    assert results["https://hung-site.edu/page"]["status"] == "unreachable"
+

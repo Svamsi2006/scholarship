@@ -48,8 +48,8 @@ class StudentProfile(BaseModel):
     github: GithubSummary | None = None
     linkedin_url: str | None = None
     portfolio_url: str | None = None
-    citizenship: str = "International"
-    residency_status: str = "Non-Resident"
+    citizenship: str | None = None
+    residency_status: str | None = None
     target_level: str = ""
     target_fields: list[str] = Field(default_factory=list)
     target_countries: list[str] = Field(default_factory=list)
@@ -81,6 +81,7 @@ class Evidenced(BaseModel):
     value: str | None = None
     evidence_quote: str | None = None
     verified: bool = False
+    match_method: Literal["exact", "fuzzy", "none"] = "none"
 
 
 class VerifiedOpportunity(BaseModel):
@@ -89,6 +90,7 @@ class VerifiedOpportunity(BaseModel):
     official_url: str | None = None
     source_tier: Literal["official", "aggregator", "other"] = "other"
     deadline: Evidenced = Field(default_factory=Evidenced)
+    deadline_type: Literal["fixed", "rolling", "cycle", "anticipated", "unknown"] = "unknown"
     deadline_state: Literal["open", "closed", "rolling", "unknown"] = "unknown"
     funding: Evidenced = Field(default_factory=Evidenced)
     requirements: list[CriterionCheck] = Field(default_factory=list)

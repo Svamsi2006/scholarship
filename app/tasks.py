@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from typing import Any
 
 from app.models import Candidate, RankedOpportunity, StudentProfile, VerifiedOpportunity
 
 
 def _today() -> str:
-    return datetime.now(UTC).strftime("%Y-%m-%d")
+    # Explicit anchor per project specification: Oct 22, 2026
+    return "2026-10-22"
 
 
 def profile_analysis_prompt(
@@ -211,11 +211,13 @@ INSTRUCTIONS & STRICT RULES:
    - "student_value": What the student has based on profile
    - "result": "met", "not_met", or "unknown"
    - "evidence_quote": Verbatim quote from the page text establishing this criterion
-4. Determine "deadline_state":
-   - "open": deadline is after {_today()}
-   - "closed": deadline is before or on {_today()}
-   - "rolling": rolling admission stated in text
-   - "unknown": no deadline found
+4. Classify "deadline_type" and determine "deadline_state":
+   - "deadline_type": "fixed" (specific calendar closing date) | "rolling" (rolling admissions/open year-round) | "cycle" (recurring annual cycle, e.g. "opens each autumn") | "anticipated" (estimated future cycle) | "unknown" (unclear or not specified)
+   - "deadline_state":
+     * "open": deadline is strictly after {_today()}
+     * "closed": deadline is before or on {_today()}
+     * "rolling": rolling admission
+     * "unknown": no deadline found or unparseable
 5. Classify "source_tier":
    - "official": official university (.edu, .ac.*, .de) or government or official foundation portal
    - "aggregator": scholarship portal, directory, or blog
@@ -231,6 +233,7 @@ Return JSON only matching the schema:
   "source_tier": "official|aggregator|other",
   "status": "verified|partial|rejected",
   "deadline": {{"value": "...", "evidence_quote": "..."}},
+  "deadline_type": "fixed|rolling|cycle|anticipated|unknown",
   "deadline_state": "open|closed|rolling|unknown",
   "funding": {{"value": "...", "evidence_quote": "..."}},
   "requirements": [

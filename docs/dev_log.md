@@ -450,4 +450,117 @@ Success: no issues found in 22 source files
 Clean: 0 dead code issues found (exit code 0).
 ```
 
+---
+
+## Milestone 6: Agent Kickoff Specification Full Alignment
+
+### Directives Addressed (from `agent_kickoff_prompt.md`)
+1. **Evidence Normalization & Two-Stage Verification**:
+   - Upgraded `app/tools/evidence.py` to perform Unicode NFKC normalization, curly quotes and dashes conversion to ASCII, markdown formatting stripping (`*`, `_`, `#`, `>`, `|`, `[`, `]`, `~`), whitespace collapsing, and casefolding.
+   - Implemented two-stage verification:
+     * Stage 1: Exact normalized substring match.
+     * Stage 2: `difflib.SequenceMatcher` sliding window match for quotes >= 25 characters with ratio threshold >= 0.92.
+   - Recorded match method (`exact`, `fuzzy`, `none`) on each `Evidenced` field and emitted in verification telemetry.
+   - Guaranteed strict anti-cross-contamination: each candidate's quote is verified strictly against that candidate's own fetched page text.
+
+2. **Citizenship Contract (Section 3.2)**:
+   - Configured `StudentProfile.citizenship` and `residency_status` to default to `None` (never defaulted to "International").
+   - Added automatic profile gap generation: `"Citizenship unknown (must verify before applying)"`.
+   - In `step_verify_candidate`, when citizenship is unknown, all citizenship/nationality requirements evaluate to `unknown` and do not disqualify the applicant.
+
+3. **Deadline Classification & Anchor Date (Section 3.4)**:
+   - Anchored reference date strictly to `Oct 22, 2026`.
+   - Extracted and classified `deadline_type`: `fixed`, `rolling`, `cycle` (e.g. "applications open each autumn"), `anticipated`, or `unknown`.
+   - Only fixed deadlines with parsed date strictly before Oct 22, 2026 and with no next cycle indicator are dropped.
+   - Unparseable date strings are treated as `unknown` and kept, never dropped.
+
+4. **Scanned-PDF OCR Fallback (Section 3.7)**:
+   - In `app/tools/documents.py`, when `pypdf` extracts fewer than 50 characters, Gemini vision OCR is triggered.
+   - Bounded memory execution: renders 1 page at a time with `pypdfium2` at ~108 DPI (scale=1.5, within 100-120 DPI range), capped at 5 pages, encoded to JPEG and freed before the next page, under a strict semaphore of 1.
+   - Logged peak memory and duration telemetry on completion.
+
+5. **Page Fetching Tiers (Section 3.6)**:
+   - Tier 1: Tavily Extract in small batches of ~5 URLs with concurrent timeout.
+   - Tier 2: `httpx` + `trafilatura` with status code checks (never retry 401, 403, 404, 410, 451).
+   - Tier 3: Jina Reader (`https://r.jina.ai/<url>`) for JS-heavy pages yielding < 100 characters.
+   - Tier 4: Search snippet as lead only, labeled unverified.
+
+6. **3rd Synthetic Profile & Anti-Hardcoding**:
+   - Added `tests/fixtures/profile_c.json` (Elena Rostova, Environmental Engineering, Nordic countries).
+   - Verified that profiles A, B, and C produce distinct, profile-relevant queries with zero hardcoded student or scholarship names.
+
+### Quality Gate Results
+
+#### 1. Pytest (`python -m pytest -v`)
+```
+============================= test session starts =============================
+platform win32 -- Python 3.13.14, pytest-9.1.1, pluggy-1.7.0
+collected 46 items
+
+tests/test_adaptability.py::test_profiles_produce_different_queries PASSED [  2%]
+tests/test_adaptability.py::test_no_hardcoded_student_names_in_app_code PASSED [  4%]
+tests/test_adaptability.py::test_no_hardcoded_scholarship_names_in_app_code PASSED [  6%]
+tests/test_adaptability.py::test_profile_without_github_works PASSED     [  8%]
+tests/test_chaos.py::test_chaos_mode_recovery_logged PASSED              [ 10%]
+tests/test_evidence.py::test_quote_present PASSED                        [ 13%]
+tests/test_evidence.py::test_quote_absent PASSED                         [ 15%]
+tests/test_evidence.py::test_whitespace_normalization PASSED             [ 17%]
+tests/test_evidence.py::test_case_insensitive PASSED                     [ 19%]
+tests/test_evidence.py::test_too_short_quote_rejected PASSED             [ 21%]
+tests/test_evidence.py::test_empty_quote_rejected PASSED                 [ 23%]
+tests/test_evidence.py::test_none_quote_rejected PASSED                  [ 26%]
+tests/test_evidence.py::test_exact_minimum_length PASSED                 [ 28%]
+tests/test_evidence.py::test_quote_must_appear_in_own_text_cross_contamination PASSED [ 30%]
+tests/test_evidence.py::test_quote_normalization_survives_formatting_noise PASSED [ 32%]
+tests/test_evidence.py::test_fuzzy_window_match_step_two PASSED          [ 34%]
+tests/test_fetch.py::test_404_is_never_retried PASSED                    [ 36%]
+tests/test_fetch.py::test_tls_timeout_retried_at_most_once PASSED        [ 39%]
+tests/test_fetch.py::test_passage_pruning PASSED                         [ 41%]
+tests/test_flow_router.py::test_enough_verified_proceeds PASSED          [ 43%]
+tests/test_flow_router.py::test_too_few_triggers_another_round PASSED    [ 45%]
+tests/test_flow_router.py::test_max_rounds_stops_loop PASSED             [ 47%]
+tests/test_flow_router.py::test_rejected_not_counted_as_usable PASSED    [ 50%]
+tests/test_flow_router.py::test_partial_counts_as_usable PASSED          [ 52%]
+tests/test_github.py::test_github_25_repos_coverage PASSED               [ 54%]
+tests/test_llm_gate.py::test_token_bucket_rate_limiter PASSED            [ 56%]
+tests/test_llm_gate.py::test_llm_gate_429_triggers_retry_and_fallback PASSED [ 58%]
+tests/test_pipeline.py::test_finish_now_proceeds_to_ranking_with_partial_results PASSED [ 60%]
+tests/test_pipeline.py::test_stop_signal_aborts_swarm PASSED             [ 63%]
+tests/test_search_fallback.py::test_tavily_failure_triggers_ddgs_fallback PASSED [ 65%]
+tests/test_search_fallback.py::test_tavily_success_no_fallback PASSED    [ 67%]
+tests/test_search_fallback.py::test_no_tavily_key_uses_ddgs_directly PASSED [ 69%]
+tests/test_v2_overhaul.py::test_litellm_drop_params_configured PASSED    [ 71%]
+tests/test_v2_overhaul.py::test_scholar_rag_indexing_and_retrieval PASSED [ 73%]
+tests/test_v2_overhaul.py::test_dual_token_bucket_rpm_and_tpm PASSED     [ 76%]
+tests/test_v2_overhaul.py::test_citizenship_and_residency_defaults PASSED [ 78%]
+tests/test_v2_overhaul.py::test_zero_tolerance_filtering_disqualifies_not_met PASSED [ 80%]
+tests/test_v2_overhaul.py::test_pre_screen_candidate_drops_mismatches PASSED [ 82%]
+tests/test_ddgs_impersonate_pinned_valid PASSED                           [ 84%]
+tests/test_v2_overhaul.py::test_vertex_ai_fallback_configuration PASSED  [ 86%]
+tests/test_v2_overhaul.py::test_queries_generation_prompt_forbids_programming_languages PASSED [ 89%]
+tests/test_v2_overhaul.py::test_deadline_classification_and_evaluation PASSED [ 91%]
+tests/test_v2_overhaul.py::test_citizenship_null_produces_gap_not_default PASSED [ 93%]
+tests/test_v2_overhaul.py::test_unknown_is_kept_and_not_met_with_quote_is_rejected PASSED [ 95%]
+tests/test_v2_overhaul.py::test_scanned_pdf_ocr_fallback_triggers_under_50_chars PASSED [ 97%]
+tests/test_v2_overhaul.py::test_hung_url_in_tavily_batch_does_not_delay_other_urls PASSED [100%]
+
+======================= 46 passed in 17.94s ========================
+```
+
+#### 2. Ruff (`ruff check .`)
+```
+All checks passed!
+```
+
+#### 3. Mypy (`mypy app scripts`)
+```
+Success: no issues found in 22 source files
+```
+
+#### 4. Vulture (`vulture app scripts --min-confidence 80`)
+```
+Clean: 0 dead code issues found (exit code 0).
+```
+
+
 

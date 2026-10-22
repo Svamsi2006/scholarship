@@ -7,11 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import uuid
 from collections import deque
-from datetime import UTC, datetime
-from typing import Any
+from datetime import UTC, date, datetime
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 from app.config import (
@@ -42,7 +43,7 @@ from app.tasks import (
     sop_prompt,
     verifier_extraction_prompt,
 )
-from app.tools.evidence import verify_evidence
+from app.tools.evidence import check_evidence_match
 from app.tools.fetch import fetch_page_async
 from app.tools.github import github_profile_async
 from app.tools.rag import default_rag
@@ -50,6 +51,68 @@ from app.tools.search import web_search_async
 
 # In-memory registry of active runs for Finish-now and Stop controls
 RUN_REGISTRY: dict[str, dict[str, Any]] = {}
+
+
+def classify_and_evaluate_deadline(
+    deadline_val: str | None,
+    deadline_type_raw: str | None,
+    page_text: str,
+    today_date: str = "2026-10-22",
+) -> tuple[
+    Literal["fixed", "rolling", "cycle", "anticipated", "unknown"],
+    Literal["open", "closed", "rolling", "unknown"],
+    bool,
+]:
+
+    """Classify deadline and determine if candidate should be dropped per Section 3.4.
+
+    Returns: (deadline_type, deadline_badge_state, should_drop)
+    - Rolling, cycle, and anticipated deadlines are kept with a badge (should_drop = False).
+    - Only fixed deadlines with a parsed date strictly before today_date AND no sign of next cycle are dropped.
+    - If date string cannot be parsed, treat as 'unknown', never as past!
+    """
+    raw_type = (deadline_type_raw or "").lower()
+    val_lower = (deadline_val or "").lower()
+
+    # 1. Rolling admissions
+    if "rolling" in raw_type or "rolling" in val_lower or "open year" in val_lower or "anytime" in val_lower:
+        return "rolling", "rolling", False
+
+    # 2. Cycle (e.g. applications open each autumn)
+    if "cycle" in raw_type or any(w in val_lower for w in ["autumn", "spring", "annual", "cycle", "each year", "reopens"]):
+        return "cycle", "rolling", False
+
+    # 3. Anticipated round
+    if "anticipated" in raw_type or "anticipated" in val_lower:
+        return "anticipated", "rolling", False
+
+    # 4. Fixed deadline date evaluation
+    if deadline_val:
+        try:
+            import dateparser
+            anchor_d = date.fromisoformat(today_date)
+            parsed = dateparser.parse(
+                deadline_val,
+                settings={"PREFER_DATES_FROM": "future", "RELATIVE_BASE": datetime(anchor_d.year, anchor_d.month, anchor_d.day, tzinfo=UTC)},
+            )
+            if parsed:
+                parsed_d = parsed.date()
+                if parsed_d < anchor_d:
+                    # Check if page gives sign of next cycle (e.g. 2027 cycle, reopens)
+                    next_cycle = bool(re.search(r"\b(next cycle|upcoming|2027|2028|annual|reopens|opens each)\b", page_text, re.I))
+                    if next_cycle:
+                        return "cycle", "rolling", False
+                    return "fixed", "closed", True
+                else:
+                    return "fixed", "open", False
+
+        except Exception:
+            pass
+        # Unparseable date string: treat as unknown, NEVER as past!
+        return "unknown", "unknown", False
+
+    return "unknown", "unknown", False
+
 
 
 def _extract_json(text: str) -> str:
@@ -277,17 +340,28 @@ class ScholarSwarmPipeline:
                 target_level=self.form_fields.get("target_level", "Masters"),
                 target_fields=[self.form_fields.get("target_field", "Computer Science")],
                 target_countries=[self.form_fields.get("target_country", "USA")],
-                citizenship=self.form_fields.get("citizenship", "International"),
-                residency_status=self.form_fields.get("residency_status", "Non-Resident"),
+                citizenship=self.form_fields.get("citizenship"),
+                residency_status=self.form_fields.get("residency_status"),
                 funding_need="full",
                 gaps=["Standardized test scores not found"],
             )
 
-        # Enforce citizenship and residency defaults
+        # Citizenship contract (Section 3.2):
+        # Never infer citizenship from target countries and never default it to 'International'.
+        # If unknown, store null and add it to profile_gaps.
         if not profile.citizenship:
-            profile.citizenship = self.form_fields.get("citizenship", "International")
+            form_cit = self.form_fields.get("citizenship")
+            profile.citizenship = form_cit if form_cit else None
+
+        if profile.citizenship is None:
+            gap_msg = "Citizenship unknown (must verify before applying)"
+            if gap_msg not in profile.gaps:
+                profile.gaps.append(gap_msg)
+
         if not profile.residency_status:
-            profile.residency_status = self.form_fields.get("residency_status", "Non-Resident")
+            form_res = self.form_fields.get("residency_status")
+            profile.residency_status = form_res if form_res else None
+
 
         # Inject GitHub data and guarantee skills and projects are fully populated
         if github_data and "error" not in github_data:
@@ -600,20 +674,27 @@ class ScholarSwarmPipeline:
         apply_val = apply_dict.get("value") if isinstance(apply_dict, dict) else None
         apply_quote = apply_dict.get("evidence_quote") if isinstance(apply_dict, dict) else None
 
+        dl_match, dl_method = check_evidence_match(page_text, deadline_quote) if deadline_quote else (False, "none")
+        fund_match, fund_method = check_evidence_match(page_text, funding_quote) if funding_quote else (False, "none")
+        apply_match, apply_method = check_evidence_match(page_text, apply_quote) if apply_quote else (False, "none")
+
         deadline_evidenced = Evidenced(
             value=deadline_val,
-            evidence_quote=deadline_quote,
-            verified=verify_evidence(page_text, deadline_quote) if deadline_quote else False,
+            evidence_quote=deadline_quote if dl_match else None,
+            verified=dl_match,
+            match_method=dl_method,
         )
         funding_evidenced = Evidenced(
             value=funding_val,
-            evidence_quote=funding_quote,
-            verified=verify_evidence(page_text, funding_quote) if funding_quote else False,
+            evidence_quote=funding_quote if fund_match else None,
+            verified=fund_match,
+            match_method=fund_method,
         )
         how_to_apply_evidenced = Evidenced(
             value=apply_val,
-            evidence_quote=apply_quote,
-            verified=verify_evidence(page_text, apply_quote) if apply_quote else False,
+            evidence_quote=apply_quote if apply_match else None,
+            verified=apply_match,
+            match_method=apply_method,
         )
 
         # Requirements criteria checks
@@ -621,29 +702,50 @@ class ScholarSwarmPipeline:
         for r in data.get("requirements", []):
             if isinstance(r, dict):
                 r_quote = r.get("evidence_quote")
-                r_verified = verify_evidence(page_text, r_quote) if r_quote else False
+                r_matched, _ = check_evidence_match(page_text, r_quote) if r_quote else (False, "none")
                 req_checks.append(
                     CriterionCheck(
                         criterion=r.get("criterion", "Requirement"),
                         student_value=r.get("student_value"),
-                        result=r.get("result", "unknown") if r_verified else "unknown",
-                        evidence_quote=r_quote if r_verified else None,
+                        result=r.get("result", "unknown") if r_matched else "unknown",
+                        evidence_quote=r_quote if r_matched else None,
                     )
                 )
 
-        # Citizenship check: verify student nationality against opportunity constraints
+        # Citizenship check: verify student nationality against opportunity constraints (Section 3.2)
         citizenship_met = True
+        student_cit = self.profile.citizenship if self.profile else None
+
         for r in req_checks:
             crit_low = r.criterion.lower()
             if any(term in crit_low for term in ["citizen", "nationality", "residency", "domestic"]):
-                if r.result == "not_met":
+                if not student_cit:
+                    # Section 3.2: If citizenship is unknown, requirement becomes unknown and does NOT reject candidate
+                    r.result = "unknown"
+                    r.student_value = "Citizenship unknown (confirm with student)"
+                elif r.result == "not_met" and r.evidence_quote:
                     citizenship_met = False
 
-        status = data.get("status", "partial")
-        if not citizenship_met:
+        # Deadline classification and evaluation (Section 3.4)
+        dl_type_raw = data.get("deadline_type")
+        dl_type, dl_state, should_drop_deadline = classify_and_evaluate_deadline(
+            deadline_val=deadline_val,
+            deadline_type_raw=dl_type_raw,
+            page_text=page_text,
+            today_date="2026-10-22",
+        )
+
+        # Section 3.4: Reject candidate ONLY on not_met backed by passing evidence quote or clearly past fixed deadline
+        has_verified_not_met = any(r.result == "not_met" and r.evidence_quote for r in req_checks)
+
+        status: Literal["verified", "partial", "rejected", "unreachable"]
+        if not citizenship_met or has_verified_not_met or should_drop_deadline:
             status = "rejected"
-        elif not (deadline_evidenced.verified or funding_evidenced.verified):
-            status = "partial" if any(r.result == "met" for r in req_checks) else "rejected"
+        elif deadline_evidenced.verified and funding_evidenced.verified and any(r.result == "met" for r in req_checks):
+            status = "verified"
+        else:
+            status = "partial"
+
 
         opp = VerifiedOpportunity(
             candidate=candidate,
@@ -651,7 +753,8 @@ class ScholarSwarmPipeline:
             official_url=data.get("official_url") or fetch_res.get("final_url", candidate.source_url),
             source_tier=data.get("source_tier", "official" if _is_official_domain(candidate.source_url) else "other"),
             deadline=deadline_evidenced,
-            deadline_state=data.get("deadline_state", "unknown"),
+            deadline_type=dl_type,
+            deadline_state=dl_state,
             funding=funding_evidenced,
             requirements=req_checks,
             how_to_apply=how_to_apply_evidenced,
@@ -1078,3 +1181,8 @@ async def run_flow_async(
         chaos=chaos,
     )
     return await pipeline.run()
+
+
+# Flow alias for pipeline
+ScholarSwarmFlow = ScholarSwarmPipeline
+

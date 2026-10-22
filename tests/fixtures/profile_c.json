@@ -1,0 +1,22 @@
+{
+    "name": "Elena Rostova",
+    "education": [
+        {"degree": "B.Sc", "field": "Environmental Engineering", "institution": "Technical University", "cgpa": 8.7, "cgpa_scale": 10.0, "year": 2026}
+    ],
+    "skills": ["GIS", "Python", "Life Cycle Assessment", "MATLAB", "Hydrological Modeling", "Remote Sensing"],
+    "projects": [
+        {"name": "Urban Microgrid Resilience", "description": "Techno-economic modeling of decentralized solar and battery systems", "tech": ["Python", "OpenDSS"], "url": null},
+        {"name": "Watershed Flood Risk", "description": "Spatial flood hazard mapping using satellite radar and digital elevation models", "tech": ["GIS", "MATLAB"], "url": null}
+    ],
+    "achievements": ["Dean's List 2024-2025", "Best Capstone Project in Sustainability 2025"],
+    "test_scores": [],
+    "github": null,
+    "target_level": "Masters",
+    "target_fields": ["Renewable Energy", "Environmental Policy"],
+    "target_countries": ["Norway", "Sweden", "Denmark"],
+    "funding_need": "full",
+    "citizenship": null,
+    "residency_status": null,
+    "gaps": ["No GRE score", "Citizenship unknown (must verify before applying)"],
+    "field_sources": {"name": "resume", "education": "marksheet", "skills": "resume", "projects": "resume", "achievements": "resume", "target_level": "form", "target_fields": "form", "target_countries": "form", "funding_need": "form"}
+}

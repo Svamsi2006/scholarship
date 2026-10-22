@@ -284,6 +284,12 @@ async def fetch_page_async(
                 else:
                     raw_text = _extract_html(resp.text)
 
+                # Tier 3 check: If HTML extraction yielded thin content (< 100 chars), try Jina Reader for JS-heavy page
+                if len(raw_text.strip()) < 100 and "pdf" not in ct.lower():
+                    jina_res = await _fetch_jina_reader(url, t_start=t_start, bus=event_bus, agent=agent, run_id=run_id)
+                    if jina_res and jina_res.get("status") == "ok":
+                        return jina_res
+
                 final_text = select_relevant_passages(raw_text)
                 _page_cache[url] = final_text
                 final_url = str(resp.url)
@@ -338,6 +344,14 @@ async def fetch_page_async(
             last_err = exc
             break
 
+    # Tier 3: Attempt Jina Reader for JS-heavy pages only (skip on fatal TLS/SSL failures)
+    is_tls_err = tls_retries > 1 or (last_err is not None and any(s in str(last_err).lower() for s in ["ssl", "tls"]))
+    if not is_tls_err:
+        jina_res = await _fetch_jina_reader(url, t_start=t_start, bus=event_bus, agent=agent, run_id=run_id)
+        if jina_res and jina_res.get("status") == "ok":
+            return jina_res
+
+
     # Unreachable
     duration_ms = int((time.time() - t_start) * 1000)
     reason = str(last_err) if last_err else "Timeout or network failure"
@@ -360,6 +374,137 @@ async def fetch_page_async(
         "text": "",
         "fetched_at": datetime.now(UTC).isoformat(),
     }
+
+
+async def _fetch_jina_reader(
+    url: str,
+    t_start: float,
+    bus: EventBus,
+    agent: str = "Verifier",
+    run_id: str = "",
+) -> dict[str, Any] | None:
+    """Tier 3: Fetch JS-rendered page via Jina Reader (https://r.jina.ai/<url>)."""
+    jina_url = f"https://r.jina.ai/{url}"
+    headers = {
+        "User-Agent": _UA,
+        "X-Return-Format": "markdown",
+    }
+    try:
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=httpx.Timeout(10.0),
+            headers=headers,
+            verify=False,
+        ) as client:
+            resp = await asyncio.wait_for(client.get(jina_url), timeout=10.0)
+            if resp.status_code == 200 and len(resp.text.strip()) > 100:
+                final_text = select_relevant_passages(resp.text)
+                _page_cache[url] = final_text
+                duration_ms = int((time.time() - t_start) * 1000)
+                res = {
+                    "url": url,
+                    "final_url": url,
+                    "status": "ok",
+                    "text": final_text,
+                    "source": "jina_reader",
+                    "fetched_at": datetime.now(UTC).isoformat(),
+                }
+                set_cache("fetch", url, res)
+                bus.emit(
+                    {
+                        "run_id": run_id,
+                        "agent": agent,
+                        "type": "tool_result",
+                        "phase": "fetch",
+                        "message": f"Jina Reader extracted {url} ({len(final_text)} chars in {duration_ms}ms)",
+                        "duration_ms": duration_ms,
+                        "data": {"url": url, "source": "jina_reader", "chars": len(final_text)},
+                    }
+                )
+                return res
+    except Exception:
+        pass
+    return None
+
+
+async def fetch_pages_batch_async(
+    urls: list[str],
+    bus: EventBus | None = None,
+    agent: str = "Verifier",
+    run_id: str = "",
+    batch_size: int = 5,
+    batch_timeout: float = 8.0,
+) -> dict[str, dict[str, Any]]:
+    """Fetch multiple URLs concurrently in small batches of ~5 URLs.
+
+    Tavily Extract is attempted for the batch under a strict asyncio.wait_for timeout.
+    URLs missing from timed-out or partial batches drop to Tier 2 (httpx)
+    individually in parallel so a hung URL never blocks other URLs beyond the timeout.
+    """
+    event_bus = bus or global_bus
+    results_map: dict[str, dict[str, Any]] = {}
+    deduped_urls = list(dict.fromkeys(urls))
+
+    for i in range(0, len(deduped_urls), batch_size):
+        chunk = deduped_urls[i : i + batch_size]
+        chunk_success: set[str] = set()
+
+        if TAVILY_API_KEY:
+            try:
+                client = AsyncTavilyClient(api_key=TAVILY_API_KEY)
+                extract_task = client.extract(urls=chunk, extract_depth="basic", timeout=int(batch_timeout))
+                batch_res = await asyncio.wait_for(extract_task, timeout=batch_timeout)
+
+                for item in batch_res.get("results", []):
+                    u = item.get("url")
+                    raw = item.get("raw_content", "")
+                    if u and len(raw.strip()) > 50:
+                        final_text = select_relevant_passages(raw)
+                        _page_cache[u] = final_text
+                        res = {
+                            "url": u,
+                            "final_url": u,
+                            "status": "ok",
+                            "text": final_text,
+                            "source": "tavily_extract",
+                            "fetched_at": datetime.now(UTC).isoformat(),
+                        }
+                        set_cache("fetch", u, res)
+                        results_map[u] = res
+                        chunk_success.add(u)
+            except Exception as batch_err:
+                event_bus.emit(
+                    {
+                        "run_id": run_id,
+                        "agent": agent,
+                        "type": "retry",
+                        "phase": "fetch",
+                        "message": f"Tavily batch ({len(chunk)} URLs) timed out or failed ({batch_err}); falling back to parallel httpx",
+                        "data": {"urls": chunk, "error": str(batch_err)},
+                    }
+                )
+
+        # Remaining URLs in chunk that were missing or failed drop to Tier 2 in parallel
+        pending_urls = [u for u in chunk if u not in chunk_success]
+        if pending_urls:
+            parallel_results = await asyncio.gather(
+                *[fetch_page_async(u, bus=event_bus, agent=agent, run_id=run_id) for u in pending_urls],
+                return_exceptions=True,
+            )
+            for u, r in zip(pending_urls, parallel_results):
+                if isinstance(r, dict):
+                    results_map[u] = r
+                else:
+                    results_map[u] = {
+                        "url": u,
+                        "final_url": u,
+                        "status": "unreachable",
+                        "reason": str(r),
+                        "text": "",
+                        "fetched_at": datetime.now(UTC).isoformat(),
+                    }
+
+    return results_map
 
 
 def fetch_page(
