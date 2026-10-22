@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class Education(BaseModel):
@@ -56,6 +56,61 @@ class StudentProfile(BaseModel):
     funding_need: Literal["full", "partial", "none"] = "full"
     gaps: list[str] = Field(default_factory=list)
     field_sources: dict[str, str] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_profile_fields(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        # 1. Normalize skills (dict items or strings)
+        raw_skills = data.get("skills")
+        if isinstance(raw_skills, list):
+            norm_skills = []
+            for s in raw_skills:
+                if isinstance(s, dict):
+                    name = s.get("name") or s.get("skill") or s.get("title")
+                    if name:
+                        norm_skills.append(str(name))
+                elif isinstance(s, str):
+                    norm_skills.append(s)
+            data["skills"] = norm_skills
+
+        # 2. Normalize test_scores (dict or list)
+        raw_scores = data.get("test_scores")
+        if isinstance(raw_scores, dict):
+            data["test_scores"] = [
+                {"name": k, "score": str(v) if v is not None else None}
+                for k, v in raw_scores.items()
+            ]
+        elif not isinstance(raw_scores, list):
+            data["test_scores"] = []
+
+        # 3. Normalize field_sources (list values to joined strings)
+        raw_sources = data.get("field_sources")
+        if isinstance(raw_sources, dict):
+            norm_sources = {}
+            for k, v in raw_sources.items():
+                if isinstance(v, list):
+                    norm_sources[k] = ", ".join(str(item) for item in v)
+                elif v is not None:
+                    norm_sources[k] = str(v)
+            data["field_sources"] = norm_sources
+
+        # 4. Normalize projects
+        raw_projects = data.get("projects")
+        if isinstance(raw_projects, list):
+            norm_projects = []
+            for p in raw_projects:
+                if isinstance(p, dict):
+                    if not p.get("description"):
+                        p["description"] = p.get("name", "Project")
+                    norm_projects.append(p)
+                elif isinstance(p, str):
+                    norm_projects.append({"name": p, "description": p, "tech": []})
+            data["projects"] = norm_projects
+
+        return data
 
 
 class Candidate(BaseModel):

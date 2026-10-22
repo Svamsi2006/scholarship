@@ -562,5 +562,66 @@ Success: no issues found in 22 source files
 Clean: 0 dead code issues found (exit code 0).
 ```
 
+---
+
+## Milestone 8: Live Production Verification on Multi-Profile Workloads
+
+### Directive 1 Execution: Full Pipeline Runs on `profile_c` and Invented Profile (`profile_vamsi`)
+
+Full end-to-end multi-agent swarm runs were executed with live Vertex AI keys (`vertex_ai/gemini-2.5-flash`) and Tavily search across two real fixture profiles:
+1. **`profile_c.json`**: Elena Rostova (B.Sc Environmental Engineering, CGPA 8.7, Nordic Countries: Sweden, Norway, Denmark).
+2. **`profile_vamsi.json`**: Vamsi Siva Ganesh Seelam (B.Tech CSE, Lovely Professional University, CGPA 8.02, GitHub: `Svamsi2006`, Target: Masters in CS/AI/Autonomous Agents across USA, Germany, Canada, UK).
+
+### Root Causes Diagnosed and Resolved Pre-Flight
+
+1. **Pydantic Validation Format Discrepancies**:
+   - **Root Cause**: The LLM produced `skills` as dictionaries (`[{"name": "GIS", "type": "tool"}]`), `test_scores` as empty dicts (`{}`), and `field_sources` as list values (`{"name": ["resume", "form"]}`), triggering a `ValidationError` which silently cascaded to generic fallback values.
+   - **Fix**: Added `@model_validator(mode="before")` on `StudentProfile` in `app/models.py` to recursively normalize dict-format skills, map dict test scores to `TestScore` objects, and join list field sources to strings.
+   - **Fallback Sanitization**: Updated `app/flow.py` fallback and override branches to respect `form_fields` (`name`, `target_fields`, `target_countries`) and never hardcode fallback profile traits.
+
+2. **Run ID Telemetry Propagation**:
+   - **Root Cause**: `bus.run_id` was uninitialized when passing an existing `EventBus()` into `run_flow()`, causing `perf_report.py` to attempt reading `Path(".")`.
+   - **Fix**: Ensured `event_bus.run_id = run_id` is assigned in both `run_flow()` and `run_flow_async()`.
+
+### Performance Telemetry & Section 6 Target Comparison
+
+| Metric | Section 6 Target | Profile C (`Elena Rostova`) | Profile Invented (`Vamsi Seelam`) | Status |
+|---|---|---|---|---|
+| **Total Wall Time** | < 4 min typical, 7 min cap | **117.9 s (1m 58s)** | **86.3 s (1m 26s)** | **PASS** |
+| **First Verified Result** | < 90 s | **28.9 s** | **34.5 s** | **PASS** |
+| **Total LLM Calls** | $\le$ 45 | **27** | **15** | **PASS** |
+| **429 Rate Limits** | 0 dropped | **5 rate-limits (0 dropped)** | **1 rate-limit (0 dropped)** | **PASS** |
+| **Model Fallbacks** | Clean failover | **9** | **5** | **PASS** |
+| **Opportunities Verified** | $\ge$ 10, top 5 ranked | **20 checked (13 usable, 5 ranked)** | **10 checked (10 usable, 5 ranked)** | **PASS** |
+| **Peak Memory Working Set** | < 1.5 GiB | **406.8 MB (0.40 GiB)** | **318.1 MB (0.31 GiB)** | **PASS** |
+| **Claims Without Quote** | 0 (marked unverified) | **0** | **0** | **PASS** |
+| **Wasted 4xx Retries** | 0 | **0** | **0** | **PASS** |
+| **Max Dead URL Wait** | $\le$ 10 s | **5.4 s** | **3.9 s** | **PASS** |
+| **SOP Draft Generated** | 1 targeted draft | **4,602 chars (SLU Erasmus Mundus)** | **4,069 chars (Essex Analytics MSc)** | **PASS** |
+
+### Individual Run Summaries
+
+#### Run 1: `profile_c.json` (`runs/20261022T084753_29538b.json`)
+- **Total Duration**: 117.9 s
+- **First Verified Opportunity**: 28.9 s (`NOHA Erasmus Mundus Scholarship`)
+- **Top 5 Recommendations**:
+  1. *Erasmus Mundus Scholarship* – Swedish University of Agricultural Sciences (SLU)
+  2. *EU Environment Academy 2026* – Swedish Environmental Protection Agency
+  3. *SI Scholarship for Global Professionals* – Swedish Institute
+  4. *Master in Applied Ecology* – Inland Norway University of Applied Sciences
+  5. *Industrial PhD Scheme* – Research Council of Norway
+- **SOP Draft**: 4,602 characters targeted to SLU Erasmus Mundus Scholarship.
+
+#### Run 2: `profile_vamsi.json` (`runs/20261022T085015_79038b.json`)
+- **Total Duration**: 86.3 s
+- **First Verified Opportunity**: 34.5 s (`Institute for Analytics and Data Science MSc Scholarships`)
+- **Top 5 Recommendations**:
+  1. *Institute for Analytics and Data Science MSc Scholarships* – University of Essex
+  2. *Joint PhD scholarship in Artificial Intelligence and Copyright Law* – UK Universities
+  3. *University of Sheffield PhD Studentship in Computer Science* – Sheffield
+  4. *Computer Science PhD Studentship: Fault Detection System Design* – UK Research Council
+  5. *Computer Science PhD Studentship: AI-driven predictive analytics* – UK Research Council
+- **SOP Draft**: 4,069 characters tailored to University of Essex MSc Scholarships citing 10 extracted profile facts and technical projects (`Deep Research Agent`, `PI Redaction Tool`).
+
 
 

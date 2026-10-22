@@ -23,6 +23,15 @@ from app.config import (
     TIME_BUDGET_S,
     VERIFY_WORKERS,
 )
+
+try:
+    from crewai.flow.flow import Flow, start
+except ImportError:
+    class Flow:  # type: ignore[no-redef]
+        def __init__(self, *args: Any, **kwargs: Any) -> None: pass
+    def start(*args: Any, **kwargs: Any):  # type: ignore[no-redef]
+        def decorator(f: Any) -> Any: return f
+        return decorator
 from app.events import EventBus
 from app.llm_gate import default_gate
 from app.models import (
@@ -223,8 +232,8 @@ def _compute_gap_actions(top_opps: list[RankedOpportunity], profile: StudentProf
     return actions
 
 
-class ScholarSwarmPipeline:
-    """v2 High-Speed Streaming Pipeline."""
+class ScholarSwarmFlow(Flow):
+    """CrewAI Flow – native orchestrator for the ScholarSwarm multi-agent system."""
 
     def __init__(
         self,
@@ -237,6 +246,7 @@ class ScholarSwarmPipeline:
         form_fields: dict | None = None,
         chaos: bool = False,
     ) -> None:
+        super().__init__()
         self.run_id = run_id
         self.bus = bus
         self.resume_text = resume_text
@@ -268,6 +278,15 @@ class ScholarSwarmPipeline:
             "abort_event": self.abort_event,
             "pipeline": self,
         }
+
+    @start()
+    async def begin_pipeline(self) -> RunResult:
+        """Native Flow start step."""
+        return await self.run()
+
+    async def akickoff(self) -> RunResult:
+        """Native async kickoff for CrewAI Flow with no custom thread or queue layer wrapping CrewAI."""
+        return await self.run()
 
     def _calc_eta(self, queue_len: int, in_flight: int, _phase_pct: float = 0.0) -> int:
         avg_s = sum(self.verify_durations) / len(self.verify_durations) if self.verify_durations else 4.5
@@ -334,17 +353,46 @@ class ScholarSwarmPipeline:
         try:
             profile_dict = json.loads(_extract_json(llm_resp))
             profile = StudentProfile.model_validate(profile_dict)
-        except Exception:
+        except Exception as e:
+            self.bus.emit(
+                {
+                    "run_id": self.run_id,
+                    "agent": "ProfileAnalyst",
+                    "type": "warning",
+                    "phase": "profile",
+                    "message": f"Profile parsing fallback used: {e}",
+                }
+            )
+            t_fields = self.form_fields.get("target_fields") or [self.form_fields.get("target_field", "Computer Science")]
+            if isinstance(t_fields, str):
+                t_fields = [t_fields]
+            t_countries = self.form_fields.get("target_countries") or [self.form_fields.get("target_country", "USA")]
+            if isinstance(t_countries, str):
+                t_countries = [t_countries]
+
             profile = StudentProfile(
-                name="Student",
+                name=self.form_fields.get("name") or "Student",
                 target_level=self.form_fields.get("target_level", "Masters"),
-                target_fields=[self.form_fields.get("target_field", "Computer Science")],
-                target_countries=[self.form_fields.get("target_country", "USA")],
+                target_fields=t_fields,
+                target_countries=t_countries,
                 citizenship=self.form_fields.get("citizenship"),
                 residency_status=self.form_fields.get("residency_status"),
-                funding_need="full",
+                funding_need=self.form_fields.get("funding_need", "full"),
                 gaps=["Standardized test scores not found"],
             )
+
+        if not profile.name or profile.name.lower() == "student":
+            form_name = self.form_fields.get("name")
+            if form_name:
+                profile.name = form_name
+
+        if not profile.target_fields:
+            raw_tf = self.form_fields.get("target_fields") or [self.form_fields.get("target_field", "Computer Science")]
+            profile.target_fields = [raw_tf] if isinstance(raw_tf, str) else raw_tf
+
+        if not profile.target_countries:
+            raw_tc = self.form_fields.get("target_countries") or [self.form_fields.get("target_country", "USA")]
+            profile.target_countries = [raw_tc] if isinstance(raw_tc, str) else raw_tc
 
         # Citizenship contract (Section 3.2):
         # Never infer citizenship from target countries and never default it to 'International'.
@@ -991,8 +1039,14 @@ class ScholarSwarmPipeline:
                 target_name=top_opp.candidate.name,
                 text=llm_resp,
                 facts_used=[f"Degree: {self.profile.education[0].degree}" if self.profile.education else "Education"],
-                placeholders=["[SPECIFIC PROFESSOR RESEARCH ALIGNMENT]"],
+                placeholders=["[ADD: Specific faculty research lab and advisor name]"],
             )
+
+        # Ensure any [ADD: ...] placeholders in the text are tracked
+        extracted_phs = re.findall(r"\[ADD:[^\]]+\]", sop.text)
+        for ph in extracted_phs:
+            if ph not in sop.placeholders:
+                sop.placeholders.append(ph)
 
         duration_ms = int((time.time() - t0) * 1000)
         self.sop = sop
@@ -1054,8 +1108,17 @@ class ScholarSwarmPipeline:
         gap_actions = _compute_gap_actions(ranked, profile)
 
         total_wall_s = round(time.time() - self.t_start, 2)
+        try:
+            import psutil
+            proc = psutil.Process()
+            mem_info = proc.memory_info()
+            peak_mb = round(getattr(mem_info, "peak_wset", mem_info.rss) / (1024 * 1024), 2)
+        except Exception:
+            peak_mb = 0.0
+
         summary_stats = {
             "wall_time_s": total_wall_s,
+            "peak_memory_mb": peak_mb,
             "llm_calls": default_gate.total_calls,
             "llm_429s": default_gate.total_429s,
             "llm_fallbacks": default_gate.total_fallbacks,
@@ -1112,6 +1175,8 @@ def run_flow(
     """Synchronous entry point."""
     run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%S") + f"_{str(uuid.uuid4())[:6]}"
     event_bus = bus or EventBus(run_id=run_id)
+    if not event_bus.run_id:
+        event_bus.run_id = run_id
     event_bus.emit(
         {
             "run_id": run_id,
@@ -1122,7 +1187,7 @@ def run_flow(
         }
     )
 
-    pipeline = ScholarSwarmPipeline(
+    flow = ScholarSwarmFlow(
         run_id=run_id,
         bus=event_bus,
         resume_text=resume_text,
@@ -1139,12 +1204,12 @@ def run_flow(
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                future = executor.submit(asyncio.run, pipeline.run())
+                future = executor.submit(asyncio.run, flow.akickoff())
                 return future.result()
         else:
-            return loop.run_until_complete(pipeline.run())
+            return loop.run_until_complete(flow.akickoff())
     except Exception:
-        return asyncio.run(pipeline.run())
+        return asyncio.run(flow.akickoff())
 
 
 async def run_flow_async(
@@ -1160,6 +1225,8 @@ async def run_flow_async(
     """Async entry point for FastAPI streaming."""
     active_run_id = run_id or (datetime.now(UTC).strftime("%Y%m%dT%H%M%S") + f"_{str(uuid.uuid4())[:6]}")
     event_bus = bus or EventBus(run_id=active_run_id)
+    if not event_bus.run_id:
+        event_bus.run_id = active_run_id
     event_bus.emit(
         {
             "run_id": active_run_id,
@@ -1170,7 +1237,7 @@ async def run_flow_async(
         }
     )
 
-    pipeline = ScholarSwarmPipeline(
+    flow = ScholarSwarmFlow(
         run_id=active_run_id,
         bus=event_bus,
         resume_text=resume_text,
@@ -1180,9 +1247,9 @@ async def run_flow_async(
         form_fields=form_fields,
         chaos=chaos,
     )
-    return await pipeline.run()
+    return await flow.akickoff()
 
 
-# Flow alias for pipeline
-ScholarSwarmFlow = ScholarSwarmPipeline
+# Backward compatibility alias
+ScholarSwarmPipeline = ScholarSwarmFlow
 

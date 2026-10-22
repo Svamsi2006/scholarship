@@ -94,18 +94,43 @@ def check_evidence_match(page_text: str, quote: str) -> tuple[bool, Literal["exa
     if len(norm_quote) >= _MIN_FUZZY_QUOTE_LEN:
         q_len = len(norm_quote)
         page_len = len(norm_page)
-        step = max(1, q_len // 4)
-        matcher = difflib.SequenceMatcher(None, norm_quote, "")
 
-        # Test windows with exact length and slightly expanded length
-        for window_size in (q_len, min(page_len, q_len + 8)):
-            if window_size > page_len:
+        # Optimization: Anchor chunk filtering (Pigeonhole principle)
+        # If similarity >= 0.92, at least one 1/4th chunk of the quote MUST match verbatim in the page.
+        max_errors = int(q_len * (1 - _FUZZY_THRESHOLD)) + 1
+        num_chunks = max_errors + 1
+        chunk_size = q_len // num_chunks
+        if chunk_size < 4:
+            chunk_size = 4
+            num_chunks = max(2, q_len // chunk_size)
+
+        candidate_starts: set[int] = set()
+        for i in range(num_chunks):
+            c_start = i * chunk_size
+            c_end = c_start + chunk_size if i < num_chunks - 1 else q_len
+            chunk = norm_quote[c_start:c_end]
+            if len(chunk) < 4:
                 continue
-            for start in range(0, page_len - window_size + 1, step):
-                sub = norm_page[start : start + window_size]
-                matcher.set_seq2(sub)
-                if matcher.quick_ratio() >= _FUZZY_THRESHOLD and matcher.ratio() >= _FUZZY_THRESHOLD:
-                    return True, "fuzzy"
+            pos = norm_page.find(chunk)
+            while pos != -1:
+                win_start = max(0, pos - c_start - 6)
+                candidate_starts.add(win_start)
+                pos = norm_page.find(chunk, pos + len(chunk))
+
+        if not candidate_starts:
+            return False, "none"
+
+        matcher = difflib.SequenceMatcher(None, norm_quote, "")
+        for start in candidate_starts:
+            for delta in (-4, -2, 0, 2, 4):
+                w_start = max(0, start + delta)
+                for w_len in (q_len, q_len - 2, q_len + 2, q_len + 4):
+                    if w_start + w_len > page_len:
+                        continue
+                    sub = norm_page[w_start : w_start + w_len]
+                    matcher.set_seq2(sub)
+                    if matcher.quick_ratio() >= _FUZZY_THRESHOLD and matcher.ratio() >= _FUZZY_THRESHOLD:
+                        return True, "fuzzy"
 
     return False, "none"
 

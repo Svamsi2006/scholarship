@@ -129,11 +129,20 @@ def generate_perf_report(run_file_or_id: str | Path | None = None) -> dict:
     print(f"   • Tool / Network Retries: {retries}")
     print(f"   • Cache Hits:             {cache_hits}")
 
-    print("\n3. Web & Network Hygiene:")
+    # Verification & Memory metrics
+    peak_mem = summary_stats.get("peak_memory_mb", 0.0)
+    candidates_verified = summary_stats.get("candidates_verified", len(result.get("all_checked", [])))
+    usable_verified = summary_stats.get("usable_verified", len(result.get("ranked", [])))
+
+    print("\n3. Verification & Resource Metrics:")
+    print(f"   • Opportunities Verified: {candidates_verified} (Usable: {usable_verified}) (Target: >= 10)")
+    print(f"   • Peak Memory:            {peak_mem:.1f} MB ({peak_mem/1024:.2f} GiB) (Target: < 1.5 GiB)")
+
+    print("\n4. Web & Network Hygiene:")
     print(f"   • Wasted 4xx Retries:     {wasted_4xx} (Target: 0)")
     print(f"   • Max URL Wait:           {max_dead_url_s:.1f} s (Target: <= 10s)")
 
-    print("\n4. Slowest 5 Steps:")
+    print("\n5. Slowest 5 Steps:")
     step_durations.sort(key=lambda x: x[1], reverse=True)
     for desc, ms in step_durations[:5]:
         print(f"   • {ms:5d}ms  {desc}")
@@ -165,6 +174,9 @@ def generate_perf_report(run_file_or_id: str | Path | None = None) -> dict:
         "retries": retries,
         "fallbacks": fallbacks,
         "cache_hits": cache_hits,
+        "peak_memory_mb": peak_mem,
+        "candidates_verified": candidates_verified,
+        "usable_verified": usable_verified,
         "all_passed": e2e_pass and first_res_pass and llm_calls_pass and dropped_pass and wasted_pass,
     }
 

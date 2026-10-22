@@ -332,11 +332,10 @@ def sop_prompt(
 
 RULES & CONTEXTUAL SOP GENERATION:
 1. WEAVE EXTRACTED PROJECTS & SKILLS: The SOP draft MUST actively integrate the student's actual projects (e.g. {', '.join(p.name for p in profile.projects[:3])}) and skills into the narrative.
-2. NO GENERIC PLACEHOLDERS: It is STRICTLY FORBIDDEN to output generic placeholders like '[PLACEHOLDER: insert project here]' or '[SPECIFIC PROJECT]'. Use the real project details provided above.
-3. Only use placeholders for personal childhood anecdotes or specific professor lab names if not stated in the profile.
+2. NO GENERIC PLACEHOLDERS: Use the real project details provided above.
+3. NEVER INVENT ACHIEVEMENTS: Never invent achievements, test scores, or personal motivations. Where a needed detail is genuinely missing from the profile (such as specific faculty lab name, advisor, or personal motivation), keep an explicit '[ADD: ...]' placeholder (e.g. '[ADD: Specific faculty research lab and advisor name]') and list them in the placeholders array. Do not remove placeholders to look polished.
 4. List every fact used in facts_used.
-5. NEVER invent achievements.
-6. Start text with this exact banner:
+5. Start text with this exact banner:
    "DRAFT ONLY – Review and edit before use. Nothing has been submitted."
 
 Return JSON only with keys: "target_name", "text", "facts_used", "placeholders"."""

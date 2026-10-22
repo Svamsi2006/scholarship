@@ -1,0 +1,24 @@
+{
+    "name": "Vamsi Siva Ganesh Seelam",
+    "education": [
+        {"degree": "B.Tech", "field": "Computer Science and Engineering", "institution": "Lovely Professional University", "cgpa": 8.02, "cgpa_scale": 10.0, "year": 2027}
+    ],
+    "skills": ["Python", "C++", "Java", "SQL", "LLMs", "RAG", "MCP", "AI Agents", "FastAPI", "Docker", "PostgreSQL", "Pinecone"],
+    "projects": [
+        {"name": "PI Redaction Tool", "description": "Production-oriented DOCX processing pipeline detecting sensitive information and replacing PII with synthetic values", "tech": ["Python", "spaCy", "Regex", "python-docx"], "url": "https://github.com/Svamsi2006"},
+        {"name": "Deep Research Agent", "description": "Full-stack AI research engine ingesting PDFs, URLs, and repos generating cited reports via Plan-Retrieve-Write-Judge pipeline", "tech": ["Python", "FastAPI", "Next.js", "RAG", "Docker"], "url": "https://github.com/Svamsi2006"},
+        {"name": "Smart-Audit AI", "description": "Call center QA dashboard covering transcription, sentiment analysis, SOP compliance, and risk scoring", "tech": ["React", "Deepgram API", "Google Sheets API"], "url": null},
+        {"name": "LPU Live", "description": "Real-time communication platform supporting messaging, announcements, file sharing, and WebRTC voice calling", "tech": ["React", "Node.js", "MongoDB", "WebRTC"], "url": "https://github.com/Svamsi2006"}
+    ],
+    "achievements": ["Oracle Cloud Infrastructure 2025 Certified Data Science Professional", "Postman API Student Expert", "MCP for Production Automation - Huggingface"],
+    "test_scores": [],
+    "github": {"username": "Svamsi2006", "profile_url": "https://github.com/Svamsi2006", "top_languages": ["Python", "TypeScript", "JavaScript"], "notable_repos": [], "public_repo_count": 10},
+    "target_level": "Masters",
+    "target_fields": ["Computer Science", "Artificial Intelligence", "Autonomous Agents"],
+    "target_countries": ["USA", "Germany", "Canada", "UK"],
+    "funding_need": "full",
+    "citizenship": "India",
+    "residency_status": "International",
+    "gaps": ["No English test score (IELTS/TOEFL)", "No GRE score"],
+    "field_sources": {"name": "resume", "education": "marksheet", "skills": "resume", "projects": "resume", "achievements": "resume", "target_level": "form", "target_fields": "form", "target_countries": "form", "funding_need": "form"}
+}

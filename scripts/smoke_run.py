@@ -22,7 +22,7 @@ def load_profile(name: str) -> dict:
     return data
 
 
-def run_smoke(profile_name: str, chaos: bool = False) -> None:
+def run_smoke(profile_name: str, chaos: bool = False) -> dict:
     print(f"\n{'='*60}")
     print(f"SMOKE RUN: {profile_name} (Chaos: {chaos})")
     print(f"{'='*60}")
@@ -106,7 +106,8 @@ def run_smoke(profile_name: str, chaos: bool = False) -> None:
         print(f"  Placeholders: {len(result.sop.placeholders)}")
 
     # Run performance report
-    generate_perf_report()
+    perf_data = generate_perf_report(bus.run_id)
+    return perf_data
 
 
 if __name__ == "__main__":

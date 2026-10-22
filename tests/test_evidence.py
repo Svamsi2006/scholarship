@@ -101,3 +101,44 @@ def test_fuzzy_window_match_step_two():
     assert matched is True
     assert method == "fuzzy"
 
+
+def test_fuzzy_quote_matcher_latency_on_12k_char_page():
+    """Directive 2: Time fuzzy quote matcher on a 12k-char page. Keep under 50ms typical."""
+    import time
+
+    base_paragraph = (
+        "The graduate school provides generous fellowship opportunities for international and domestic applicants. "
+        "Selected candidates will receive full tuition coverage, health insurance, and an annual living stipend. "
+        "Applications must be submitted through the university admission portal before the deadline. "
+    )
+    # Build 12,000 character page
+    page_12k = (base_paragraph * 45)[:12000]
+
+    # 1. Exact match should succeed instantly without fuzzy matching
+    exact_quote = "Selected candidates will receive full tuition coverage"
+    t0 = time.perf_counter()
+    matched_exact, method_exact = check_evidence_match(page_12k, exact_quote)
+    t_exact_ms = (time.perf_counter() - t0) * 1000
+    assert matched_exact is True
+    assert method_exact == "exact"
+    assert t_exact_ms < 15.0
+
+    # 2. Fuzzy match on a near-match quote (slight typo: 'recive' instead of 'receive')
+    fuzzy_quote = "Selected candidates will recive full tuition coverage, health insurance"
+    t0 = time.perf_counter()
+    matched_fuzzy, method_fuzzy = check_evidence_match(page_12k, fuzzy_quote)
+    t_fuzzy_ms = (time.perf_counter() - t0) * 1000
+    assert matched_fuzzy is True
+    assert method_fuzzy == "fuzzy"
+    assert t_fuzzy_ms < 50.0  # Under 50ms typical
+
+    # 3. Fuzzy miss on a quote not on the page (worst-case full scan)
+    absent_quote = "Completely distinct grant program requirements for post-doctoral scholars"
+    t0 = time.perf_counter()
+    matched_none, method_none = check_evidence_match(page_12k, absent_quote)
+    t_absent_ms = (time.perf_counter() - t0) * 1000
+    assert matched_none is False
+    assert method_none == "none"
+    assert t_absent_ms < 50.0  # Even full scan stays well under 50ms
+
+

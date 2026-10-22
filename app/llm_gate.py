@@ -126,7 +126,7 @@ class LLMGate:
                 try:
                     # Chaos mode injection
                     if chaos or (CHAOS_RATE > 0 and random.random() < CHAOS_RATE):
-                        if random.random() < 0.25:
+                        if (chaos and attempt == 1) or random.random() < 0.35:
                             event_bus.emit(
                                 {
                                     "run_id": run_id,
