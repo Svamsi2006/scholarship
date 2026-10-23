@@ -1251,7 +1251,6 @@ async def run_flow_async(
 
 
 # Backward compatibility aliases
-ScholarSwarmFlow = ScholarshipStarFlow
 scholarshipstarFlow = ScholarshipStarFlow
 ScholarshipStarPipeline = ScholarshipStarFlow
 ScholarSwarmPipeline = ScholarshipStarFlow
